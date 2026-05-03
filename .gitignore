@@ -38,3 +38,11 @@ logs/
 # API keys / secrets
 secrets.json
 config/secrets.*
+
+# Google OAuth
+credentials.json
+token.json
+
+# Temporary processing files (ignore contents, keep the directory)
+.tmp/*
+!.tmp/.gitkeep
