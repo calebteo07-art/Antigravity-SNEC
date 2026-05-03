@@ -222,8 +222,12 @@ class EnvValidator:
             ]
 
         try:
-            svc = build("sheets", "v4", credentials=creds, cache_discovery=False)
-            svc.spreadsheets().list(pageSize=1).execute()
+            # Sheets API has no list() — use Drive to list spreadsheet files instead
+            drive_svc = build("drive", "v3", credentials=creds, cache_discovery=False)
+            drive_svc.files().list(
+                q="mimeType='application/vnd.google-apps.spreadsheet'",
+                pageSize=1, fields="files(id)"
+            ).execute()
             results.append(CheckResult("PASS", "Google Sheets", "Connected"))
         except Exception as e:
             results.append(CheckResult(
