@@ -22,9 +22,20 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
-MODEL = "claude-sonnet-4-6"
-API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
+MODEL       = "claude-sonnet-4-6"
+MODEL_SMALL = "claude-haiku-4-5"   # for low-complexity tasks (flashcards, hints)
+API_KEY  = os.getenv("ANTHROPIC_API_KEY", "").strip()
 MOCK_MODE = not API_KEY
+
+# Module-level singleton — avoids re-instantiation and re-importing on every call
+_client = None
+
+def _get_client():
+    global _client
+    if _client is None:
+        import anthropic
+        _client = anthropic.Anthropic(api_key=API_KEY)
+    return _client
 
 # Canned mock responses keyed by feature — realistic enough to test downstream logic
 _MOCK_RESPONSES: dict[str, str] = {
@@ -71,6 +82,7 @@ def ask(
     messages: list[dict],
     max_tokens: int = 1024,
     feature: str = "default",
+    model: str | None = None,
 ) -> str:
     """
     Send a conversation to Claude and return the response text.
@@ -80,6 +92,7 @@ def ask(
         messages:      Conversation history as list of {"role": "user"/"assistant", "content": str}.
         max_tokens:    Maximum tokens in the response.
         feature:       Feature name for mock routing: "chatbot", "flashcard", "case", "image".
+        model:         Override model (defaults to MODEL). Pass MODEL_SMALL for cheap tasks.
 
     Returns:
         Response text as a string.
@@ -87,11 +100,8 @@ def ask(
     if MOCK_MODE:
         return _mock_response(feature)
 
-    import anthropic
-    client = anthropic.Anthropic(api_key=API_KEY)
-
-    response = client.messages.create(
-        model=MODEL,
+    response = _get_client().messages.create(
+        model=model or MODEL,
         max_tokens=max_tokens,
         system=[
             {
@@ -155,10 +165,7 @@ def ask_with_image(
             ],
         }
 
-    import anthropic
-    client = anthropic.Anthropic(api_key=API_KEY)
-
-    response = client.messages.create(
+    response = _get_client().messages.create(
         model=MODEL,
         max_tokens=max_tokens,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],

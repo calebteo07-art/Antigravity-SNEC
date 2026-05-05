@@ -376,9 +376,12 @@ def page_chatbot() -> None:
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 system_prompt = _load_kb()
+                # Keep only the last 10 messages — older context rarely improves answers
+                # and grows the bill linearly with session length
+                recent_messages = st.session_state.chat_messages[-10:]
                 response = ask(
                     system_prompt=system_prompt,
-                    messages=st.session_state.chat_messages,
+                    messages=recent_messages,
                     max_tokens=1024,
                     feature="chatbot",
                 )
@@ -867,6 +870,7 @@ def page_cases() -> None:
                         messages=[{"role": "user", "content": "I need a hint for my next step."}],
                         max_tokens=80,
                         feature="chatbot",
+                        model="claude-haiku-4-5",
                     )
                 st.session_state.case_hints_used = hints_used + 1
                 st.session_state.case_hint_messages.append(hint_text)
@@ -896,7 +900,7 @@ def page_cases() -> None:
         "Answer ONLY what the student directly asks. Use lay language.\n"
         "If asked for examination findings or investigations, provide them from the case.\n"
         "Do NOT reveal the diagnosis.\n\n"
-        f"Case: {_json.dumps(case, indent=2)}"
+        f"Case: {_json.dumps(case, separators=(',', ':'))}"
     )
 
     # Conversation display

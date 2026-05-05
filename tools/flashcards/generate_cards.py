@@ -20,7 +20,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.shared.claude_client import ask
+from tools.shared.claude_client import ask, MODEL_SMALL
 from tools.shared.gsheets import append_row
 from tools.shared.audit_log import log as audit_log
 from tools.flashcards.sm2 import due_date
@@ -92,13 +92,15 @@ def generate_cards(
     Returns:
         Number of cards successfully saved.
     """
-    transcript = _build_transcript(messages)
+    # Truncate to last 20 messages — recent content contains all the extractable facts
+    transcript = _build_transcript(messages[-20:])
 
     response = ask(
         system_prompt=CARD_PROMPT,
         messages=[{"role": "user", "content": f"Session transcript:\n\n{transcript}"}],
-        max_tokens=1024,
+        max_tokens=512,
         feature="flashcard",
+        model=MODEL_SMALL,
     )
 
     cards = _parse_cards(response)

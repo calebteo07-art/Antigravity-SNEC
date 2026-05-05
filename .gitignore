@@ -46,3 +46,8 @@ token.json
 # Temporary processing files (ignore contents, keep the directory)
 .tmp/*
 !.tmp/.gitkeep
+
+# Claude Code / superpowers
+.claude/
+.superpowers/
+.pytest_cache/

@@ -13,7 +13,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.shared.claude_client import ask
+from tools.shared.claude_client import ask, MODEL_SMALL
 
 EVAL_PROMPT = """You are an experienced ophthalmology examiner evaluating a student's clinical case performance.
 
@@ -52,14 +52,14 @@ def evaluate_case(case: dict, conversation: list[dict], student_id: str) -> dict
     """
     from tools.shared.audit_log import log as audit_log
 
-    # Build context for Claude
+    # Build context for Claude — compact JSON saves ~30% tokens vs indent=2
     case_summary = json.dumps({
         "diagnosis": case["diagnosis"],
         "management": case["management"],
         "rubric": case["rubric"],
         "examination_findings": case["examination_findings"],
         "investigations": case["investigations"],
-    }, indent=2)
+    }, separators=(",", ":"))
 
     transcript = "\n\n".join(
         f"{'Student' if m['role'] == 'user' else 'Patient/Examiner'}: {m['content']}"
@@ -71,8 +71,9 @@ def evaluate_case(case: dict, conversation: list[dict], student_id: str) -> dict
     response = ask(
         system_prompt=EVAL_PROMPT,
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=1024,
+        max_tokens=512,
         feature="case",
+        model=MODEL_SMALL,
     )
 
     # Parse response
