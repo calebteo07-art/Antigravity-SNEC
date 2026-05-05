@@ -21,7 +21,7 @@ from tools.shared.audit_log import log
 
 PDPA_NOTICE = """
 ╔══════════════════════════════════════════════════════════════════════╗
-║           SNEC AI Learning Platform — Data Collection Notice         ║
+║                 EyeQ — Data Collection Notice                        ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║                                                                      ║
 ║  This platform collects and processes the following personal data:   ║
@@ -52,7 +52,7 @@ def run_onboarding() -> str:
     Returns:
         student_id (UUID string)
     """
-    print("\n  Welcome to the SNEC AI Learning Platform\n")
+    print("\n  Welcome to EyeQ\n")
 
     # Collect identity
     print("  Please enter your details to continue.")

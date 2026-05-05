@@ -1,4 +1,4 @@
-"""SNEC AI Learning Platform — Streamlit Web UI
+"""EyeQ — Streamlit Web UI
 
 Run with:
     streamlit run app.py
@@ -18,7 +18,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # Page config (must be first Streamlit call)
 # ---------------------------------------------------------------------------
 st.set_page_config(
-    page_title="SNEC AI Learning Platform",
+    page_title="EyeQ",
     page_icon="👁️",
     layout="wide",
     initial_sidebar_state="expanded",

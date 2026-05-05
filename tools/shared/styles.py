@@ -789,8 +789,8 @@ def wordmark() -> str:
         '<div class="snec-wordmark">'
         '  <div class="snec-wordmark-icon">👁️</div>'
         '  <div class="snec-wordmark-text">'
-        '    <div class="snec-wordmark-name">SNEC AI</div>'
-        '    <div class="snec-wordmark-sub">Learning Platform</div>'
+        '    <div class="snec-wordmark-name">EyeQ</div>'
+        '    <div class="snec-wordmark-sub">Ophthalmology Training</div>'
         '  </div>'
         '</div>'
     )
