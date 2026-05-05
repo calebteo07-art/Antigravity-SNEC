@@ -63,6 +63,9 @@ DEFAULTS = {
     "review_index": 0,
     "review_done": False,
     "card_revealed": False,
+    "case_xp_result": None,
+    "case_hints_used": 0,
+    "case_hint_messages": [],
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -428,8 +431,28 @@ def page_flashcards() -> None:
 # ---------------------------------------------------------------------------
 # CASE SIMULATOR PAGE
 # ---------------------------------------------------------------------------
+
+_TOPIC_EMOJI = {
+    "glaucoma": "👁️", "retina": "🔬", "cornea": "🌊",
+    "neuro-ophthalmology": "🧠", "lens": "💎", "cataract": "💎",
+}
+_DIFF_STARS = {
+    "beginner": "⭐", "intermediate": "⭐⭐", "advanced": "⭐⭐⭐", "expert": "⭐⭐⭐⭐",
+}
+_MAX_HINTS = 3
+
+
+def _reset_case_state() -> None:
+    st.session_state.current_case = None
+    st.session_state.case_conversation = []
+    st.session_state.case_result = None
+    st.session_state.case_xp_result = None
+    st.session_state.case_hints_used = 0
+    st.session_state.case_hint_messages = []
+
+
 def page_cases() -> None:
-    st.title("🏥 Clinical Case Simulator")
+    import json as _json
 
     ask, _, MOCK_MODE, MODEL = _claude()
     from tools.cases.load_case import list_available_cases, load_case
@@ -437,107 +460,341 @@ def page_cases() -> None:
     from tools.cases.log_result import log_case_result
     from tools.flashcards.generate_cards import generate_cards
 
-    if MOCK_MODE:
-        st.warning("⚠️ Mock mode — patient responses are simulated.")
+    try:
+        from tools.shared.progress import (
+            get_level_info, calculate_xp_reward,
+            get_progress, update_progress, BADGES,
+        )
+        _prog_ok = True
+    except Exception:
+        _prog_ok = False
 
     sid = st.session_state.student_id
 
-    # Case selection
-    if st.session_state.current_case is None:
+    # ── LEVEL BANNER (shared helper) ─────────────────────────────────────────
+    def _level_banner() -> None:
+        if not _prog_ok:
+            return
+        try:
+            prog = get_progress(sid)
+            info = get_level_info(prog["total_xp"])
+            c1, c2, c3, c4 = st.columns([1, 3, 3, 1])
+            with c1:
+                st.markdown(f"## {info['icon']}")
+            with c2:
+                st.markdown(f"**{info['name']}** · Level {info['level_num']}")
+                st.caption(f"{prog['total_xp']:,} XP · {prog['cases_completed']} cases done"
+                           + (f" · 🔥 {prog['streak_days']}-day streak" if prog.get("streak_days", 0) > 1 else ""))
+            with c3:
+                if info["next_threshold"]:
+                    st.progress(
+                        info["progress_pct"],
+                        text=f"{info['xp_to_next']:,} XP until {info['next_name']}",
+                    )
+                else:
+                    st.success("Max rank reached!")
+            with c4:
+                n = len(prog.get("badges", []))
+                if n:
+                    st.markdown(f"🏅 **{n}**")
+        except Exception:
+            pass
+
+    # ════════════════════════════════════════════════════════════════════════
+    # VIEW 1 — CASE SELECTION
+    # ════════════════════════════════════════════════════════════════════════
+    if st.session_state.current_case is None and st.session_state.case_result is None:
+        st.title("🏥 Clinical Case Simulator")
+        _level_banner()
+        st.markdown("---")
+
+        if MOCK_MODE:
+            st.warning("⚠️ Mock mode — patient responses and evaluation are simulated.")
+
         available = list_available_cases()
         if not available:
             st.error("No cases available. Add JSON files to the `cases/` directory.")
             return
 
-        st.subheader("Select a Case")
-        case_options = {}
+        st.subheader("Choose a Case")
+        st.caption("Interview the AI patient, request investigations, then submit your diagnosis and management plan.")
+
+        # Case cards — up to 3 per row
+        cases_data: list[dict] = []
         for cid in available:
             try:
-                c = load_case(cid)
-                case_options[f"{c['title']} [{c['difficulty']}] — {c['topic']}"] = cid
+                cases_data.append(load_case(cid))
             except Exception:
-                case_options[cid] = cid
+                pass
 
-        chosen_label = st.selectbox("Available cases", list(case_options.keys()))
-        if st.button("Start Case", type="primary"):
-            case = load_case(case_options[chosen_label])
-            st.session_state.current_case = case
-            st.session_state.case_conversation = []
-            st.session_state.case_result = None
-            st.rerun()
+        cols = st.columns(min(len(cases_data), 3))
+        for i, case in enumerate(cases_data):
+            with cols[i % 3]:
+                diff  = case.get("difficulty", "intermediate")
+                topic = case.get("topic", "")
+                stars = _DIFF_STARS.get(diff, "⭐⭐")
+                emoji = _TOPIC_EMOJI.get(topic, "🏥")
+                mins  = case.get("estimated_minutes", "?")
+
+                with st.container(border=True):
+                    st.markdown(f"### {emoji} {case['title']}")
+                    st.markdown(f"{stars} **{diff.capitalize()}**  ·  ⏱️ ~{mins} min")
+                    st.caption(f"Topic: {topic.replace('-', ' ').title()}")
+                    st.markdown("**Up to 800 XP** per attempt")
+                    st.markdown(
+                        "**Earn bonus XP for:**\n"
+                        "- Correct diagnosis & management\n"
+                        "- Perfect domain scores (+50 XP each)\n"
+                        "- Finishing quickly (+75 XP)\n"
+                        "- Using zero hints (+badge)"
+                    )
+                    if st.button(
+                        "▶ Start Case",
+                        key=f"start_{case['case_id']}",
+                        type="primary",
+                        use_container_width=True,
+                    ):
+                        _reset_case_state()
+                        st.session_state.current_case = case
+                        st.rerun()
+
+        # Badge wall
+        if _prog_ok:
+            try:
+                prog = get_progress(sid)
+                if prog.get("badges"):
+                    st.markdown("---")
+                    st.subheader("🏅 Your Badges")
+                    bcols = st.columns(min(len(prog["badges"]), 5))
+                    for col, bkey in zip(bcols, prog["badges"]):
+                        name, icon, desc = BADGES.get(bkey, (bkey, "🏅", ""))
+                        with col:
+                            st.markdown(f"#### {icon}")
+                            st.markdown(f"**{name}**")
+                            st.caption(desc)
+            except Exception:
+                pass
         return
 
+    # ════════════════════════════════════════════════════════════════════════
+    # VIEW 2 — RESULTS
+    # ════════════════════════════════════════════════════════════════════════
+    if st.session_state.case_result is not None:
+        case   = st.session_state.current_case
+        result = st.session_state.case_result
+        total  = int(result.get("total_score", 0))
+        pct    = int(total / 40 * 100)
+
+        # Calculate and persist XP exactly once (when xp_result is still None)
+        if _prog_ok and st.session_state.case_xp_result is None:
+            try:
+                msg_count = sum(
+                    1 for m in st.session_state.case_conversation if m["role"] == "user"
+                )
+                prog        = get_progress(sid)
+                is_first    = prog["cases_completed"] == 0
+                hints_used  = st.session_state.get("case_hints_used", 0)
+                xp_reward   = calculate_xp_reward(
+                    result=result,
+                    message_count=msg_count,
+                    is_first_case=is_first,
+                    hints_used=hints_used,
+                    cases_completed=prog["cases_completed"],
+                )
+                # Only surface badges the student doesn't already own
+                new_badges = [b for b in xp_reward["new_badges"] if b not in prog["badges"]]
+                xp_reward["new_badges"] = new_badges
+                update_progress(sid, xp_reward["total_xp"], new_badges)
+                st.session_state.case_xp_result = xp_reward
+
+                if total == 40:
+                    st.snow()
+                elif total >= 30:
+                    st.balloons()
+            except Exception as exc:
+                st.session_state.case_xp_result = {
+                    "total_xp": 0, "new_badges": [], "error": str(exc),
+                }
+
+        xp = st.session_state.case_xp_result or {}
+
+        # Header with grade medal
+        grade = "🥇" if pct >= 90 else "🥈" if pct >= 75 else "🥉" if pct >= 60 else "📋"
+        st.title(f"{grade} Case Complete: {case['title']}")
+
+        # XP reward banner
+        if xp.get("total_xp", 0) > 0:
+            st.success(f"### +{xp['total_xp']:,} XP earned!")
+            _level_banner()
+
+            with st.expander("⚡ XP Breakdown", expanded=False):
+                st.markdown(f"Base score: **{xp.get('base_xp', 0)} XP** (score × 10)")
+                for bname, bval in xp.get("bonuses", []):
+                    st.markdown(f"+ **{bval} XP** — *{bname}*")
+                for pname, pval in xp.get("penalties", []):
+                    st.markdown(f"**{pval} XP** — *{pname}*")
+                st.markdown(f"---\n**Total: {xp.get('total_xp', 0):,} XP**")
+
+        st.markdown("---")
+
+        # Domain score cards
+        st.subheader("📊 Performance Breakdown")
+        domains = [
+            ("📝 History",        "history_score",        "history_feedback"),
+            ("🔬 Investigations", "investigations_score",  "investigations_feedback"),
+            ("🎯 Diagnosis",      "diagnosis_score",       "diagnosis_feedback"),
+            ("💊 Management",     "management_score",      "management_feedback"),
+        ]
+        dcols = st.columns(4)
+        for col, (label, sk, _) in zip(dcols, domains):
+            score = int(result.get(sk, 0))
+            dot   = "🟢" if score >= 8 else "🟡" if score >= 5 else "🔴"
+            with col:
+                st.metric(label, f"{dot} {score}/10")
+                st.progress(score / 10)
+
+        total_dot = "🟢" if total >= 30 else "🟡" if total >= 20 else "🔴"
+        st.metric("Total Score", f"{total_dot} {total}/40  ({pct}%)")
+
+        # Written feedback
+        with st.expander("📋 Detailed Feedback", expanded=True):
+            for label, sk, fbk in domains:
+                fb    = result.get(fbk, "")
+                score = int(result.get(sk, 0))
+                if fb:
+                    if score >= 8:
+                        st.success(f"**{label} ({score}/10):** {fb}")
+                    elif score >= 5:
+                        st.warning(f"**{label} ({score}/10):** {fb}")
+                    else:
+                        st.error(f"**{label} ({score}/10):** {fb}")
+            if result.get("overall_feedback"):
+                st.info(f"**Overall:** {result['overall_feedback']}")
+
+        # New badges
+        new_badges = xp.get("new_badges", [])
+        if new_badges:
+            st.markdown("---")
+            st.subheader("🏅 Badges Unlocked!")
+            bcols = st.columns(min(len(new_badges), 4))
+            for col, bkey in zip(bcols, new_badges):
+                name, icon, desc = BADGES.get(bkey, (bkey, "🏅", ""))
+                with col:
+                    st.markdown(f"### {icon}")
+                    st.markdown(f"**{name}**")
+                    st.caption(desc)
+
+        # Actions
+        st.markdown("---")
+        a1, a2 = st.columns(2)
+        with a1:
+            if st.button("🔄 Try Another Case", type="primary", use_container_width=True):
+                _reset_case_state()
+                st.rerun()
+        with a2:
+            if st.button("🏠 Go to Dashboard", use_container_width=True):
+                _reset_case_state()
+                st.session_state.page = "Dashboard"
+                st.rerun()
+        return
+
+    # ════════════════════════════════════════════════════════════════════════
+    # VIEW 3 — ACTIVE CASE
+    # ════════════════════════════════════════════════════════════════════════
     case = st.session_state.current_case
 
-    # Show case result if submitted
-    if st.session_state.case_result:
-        result = st.session_state.case_result
-        st.subheader(f"📊 Results: {case['title']}")
-
-        cols = st.columns(4)
-        domains = [
-            ("History", "history_score"),
-            ("Investigations", "investigations_score"),
-            ("Diagnosis", "diagnosis_score"),
-            ("Management", "management_score"),
-        ]
-        for col, (label, key) in zip(cols, domains):
-            col.metric(label, f"{result.get(key, 0)}/10")
-
-        total = result.get("total_score", 0)
-        colour = "🟢" if total >= 28 else "🟡" if total >= 20 else "🔴"
-        st.metric("Total Score", f"{colour} {total}/40", f"{int(total/40*100)}%")
-
-        st.markdown("### Feedback")
-        for label, key in domains:
-            fb = result.get(key.replace("_score", "_feedback"), "")
-            if fb:
-                st.markdown(f"**{label}:** {fb}")
-        st.info(f"**Overall:** {result.get('overall_feedback', '')}")
-
-        if st.button("Try Another Case"):
-            st.session_state.current_case = None
-            st.session_state.case_conversation = []
-            st.session_state.case_result = None
-            st.rerun()
-        return
-
-    # Case header in sidebar
+    # Sidebar: case info + turn counter + hints + phase checklist
     with st.sidebar:
         st.markdown("---")
-        st.markdown(f"**Case:** {case['title']}")
-        st.markdown(f"**Difficulty:** {case['difficulty']}")
-        st.markdown(f"**Patient:** {case['patient']['name']}, {case['patient']['age']}y {case['patient']['gender']}")
-        st.markdown(f"**Complaint:** {case['patient']['presenting_complaint']}")
+        st.markdown(f"**{case['title']}**")
+        diff  = case.get("difficulty", "")
+        topic = case.get("topic", "")
+        st.markdown(
+            f"{_DIFF_STARS.get(diff, '')} {diff.capitalize()}  ·  "
+            f"{_TOPIC_EMOJI.get(topic, '🏥')} {topic.replace('-', ' ').title()}"
+        )
+        st.markdown(
+            f"**Patient:** {case['patient']['name']}, "
+            f"{case['patient']['age']}y {case['patient']['gender']}"
+        )
+        st.caption(f"*{case['patient']['presenting_complaint']}*")
 
-    st.subheader(f"🏥 {case['title']}")
-    st.caption("Interview the patient, request investigations, then submit your diagnosis and management plan.")
+        st.markdown("---")
+        turn_count = sum(1 for m in st.session_state.case_conversation if m["role"] == "user")
+        st.metric("Your turns", turn_count, help="Speed bonus unlocks at ≤8 turns")
+
+        st.markdown("**Phase Guide**")
+        for phase in ["☐ History", "☐ Investigations", "☐ Diagnosis", "☐ Management"]:
+            st.markdown(phase)
+
+        # Hint system
+        st.markdown("---")
+        hints_used      = st.session_state.get("case_hints_used", 0)
+        hints_remaining = _MAX_HINTS - hints_used
+        filled   = "💡" * hints_remaining
+        depleted = "⬜" * hints_used
+        st.markdown(f"**Hints:** {filled}{depleted}")
+        st.caption("Each hint costs 20 XP from your final reward")
+
+        if hints_remaining > 0:
+            if st.button("💡 Use a Hint", use_container_width=True):
+                hint_sys = (
+                    "You are a clinical tutor. A student is working through an ophthalmology case. "
+                    f"The patient's presenting complaint is: {case['patient']['presenting_complaint']}. "
+                    "Give a single helpful 1-sentence clinical nudge about what the student should "
+                    "ask or do next, WITHOUT revealing the diagnosis. Keep it subtle."
+                )
+                with st.spinner("Generating hint..."):
+                    hint_text = ask(
+                        system_prompt=hint_sys,
+                        messages=[{"role": "user", "content": "I need a hint for my next step."}],
+                        max_tokens=80,
+                        feature="chatbot",
+                    )
+                st.session_state.case_hints_used = hints_used + 1
+                st.session_state.case_hint_messages.append(hint_text)
+                st.rerun()
+        else:
+            st.caption("No hints remaining")
+
+    # Main area header
+    st.title(f"🏥 {case['title']}")
+    if MOCK_MODE:
+        st.warning("⚠️ Mock mode — patient responses are simulated.")
+    st.caption(
+        "Interview the patient · Request investigations · Then submit your diagnosis and management plan."
+    )
+
+    # Show active hints above conversation
+    for hint in st.session_state.get("case_hint_messages", []):
+        st.info(f"💡 **Hint:** {hint}")
 
     # Patient system prompt
-    import json as _json
-    patient_prompt = f"""You are playing the role of a patient in a clinical simulation.
-Answer ONLY what the student directly asks. Use lay language.
-If asked for examination findings or investigations, provide them from the case.
-Do NOT reveal the diagnosis.
-
-Case: {_json.dumps(case, indent=2)}"""
+    patient_prompt = (
+        "You are playing the role of a patient in a clinical simulation.\n"
+        "Answer ONLY what the student directly asks. Use lay language.\n"
+        "If asked for examination findings or investigations, provide them from the case.\n"
+        "Do NOT reveal the diagnosis.\n\n"
+        f"Case: {_json.dumps(case, indent=2)}"
+    )
 
     # Conversation display
     for msg in st.session_state.case_conversation:
-        role = "user" if msg["role"] == "user" else "assistant"
+        role  = "user" if msg["role"] == "user" else "assistant"
         label = "You (Doctor)" if role == "user" else f"Patient ({case['patient']['name']})"
         with st.chat_message(role):
             st.markdown(f"**{label}:** {msg['content']}")
 
-    # Submit button
+    # Submit for evaluation
     if st.session_state.case_conversation:
-        if st.button("📋 Submit Case for Evaluation", type="primary"):
+        if st.button("📋 Submit for Evaluation", type="primary"):
             with st.spinner("Evaluating your performance..."):
                 try:
                     result = evaluate_case(case, st.session_state.case_conversation, sid)
                     log_case_result(sid, case, result)
                     generate_cards(sid, case["case_id"], st.session_state.case_conversation)
-                    st.session_state.case_result = result
+                    st.session_state.case_result  = result
+                    st.session_state.case_xp_result = None  # trigger XP calc on results page
                     st.rerun()
                 except Exception as e:
                     st.error(f"Evaluation failed: {e}")
@@ -545,7 +802,6 @@ Case: {_json.dumps(case, indent=2)}"""
     # Chat input
     if prompt := st.chat_input("Talk to the patient or request investigations..."):
         st.session_state.case_conversation.append({"role": "user", "content": prompt})
-
         with st.spinner("Patient responding..."):
             response = ask(
                 system_prompt=patient_prompt,
