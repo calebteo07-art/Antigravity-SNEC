@@ -25,6 +25,16 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
+# Design system — inject once, transforms every page
+# ---------------------------------------------------------------------------
+from tools.shared.styles import (
+    SNEC_CSS, ph, section_label, stat_card, topic_bar, badge,
+    user_chip, wordmark, xp_toast, domain_card,
+    flashcard_q, flashcard_a, start_item, named_progress,
+)
+st.markdown(SNEC_CSS, unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
 # Lazy imports (avoid slow startup for unused features)
 # ---------------------------------------------------------------------------
 @st.cache_resource
@@ -91,22 +101,18 @@ You may withdraw consent at any time by contacting the platform administrator.
 # ---------------------------------------------------------------------------
 def _sidebar() -> None:
     with st.sidebar:
-        st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Singapore_Eye_logo.png/120px-Singapore_Eye_logo.png",
-                 width=60, caption="SNEC AI")
-
-        st.markdown("## 👁️ SNEC AI Platform")
+        st.markdown(wordmark(), unsafe_allow_html=True)
 
         if st.session_state.student_id:
-            st.success(f"Logged in as **{st.session_state.student_name}**")
-            st.markdown("---")
+            st.markdown(user_chip(st.session_state.student_name), unsafe_allow_html=True)
 
             pages = {
-                "🏠 Dashboard": "Dashboard",
-                "💬 Chatbot Tutor": "Chatbot",
-                "🃏 Flash-cards": "Flashcards",
-                "🏥 Case Simulator": "Cases",
-                "🔬 Image Quiz": "ImageQuiz",
-                "⚙️ Admin": "Admin",
+                "🏠  Dashboard":      "Dashboard",
+                "💬  Chatbot Tutor":  "Chatbot",
+                "🃏  Flash-cards":    "Flashcards",
+                "🏥  Case Simulator": "Cases",
+                "🔬  Image Quiz":     "ImageQuiz",
+                "⚙️  Admin":          "Admin",
             }
             for label, key in pages.items():
                 if st.button(label, use_container_width=True,
@@ -114,46 +120,93 @@ def _sidebar() -> None:
                     st.session_state.page = key
                     st.rerun()
 
-            st.markdown("---")
-            if st.button("🚪 Log Out", use_container_width=True):
+            st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+            if st.button("↩  Log Out", use_container_width=True):
                 for k, v in DEFAULTS.items():
                     st.session_state[k] = v
                 st.rerun()
         else:
-            st.info("Please log in to continue.")
+            st.markdown(
+                '<div style="font-size:.8rem;color:var(--txt-3);padding:.5rem 0">'
+                'Sign in to access the platform.</div>',
+                unsafe_allow_html=True,
+            )
 
-        # Mock mode badge
         _, __, MOCK_MODE, ___ = _claude()
         if MOCK_MODE:
-            st.warning("⚠️ Mock mode — add `ANTHROPIC_API_KEY` to `.env` for real AI")
+            st.markdown(
+                f'<div style="margin-top:1rem">{badge("Mock mode", "bd")}</div>',
+                unsafe_allow_html=True,
+            )
 
 
 # ---------------------------------------------------------------------------
 # LOGIN PAGE
 # ---------------------------------------------------------------------------
 def page_login() -> None:
-    st.title("👁️ SNEC AI Learning Platform")
-    st.markdown("An AI-powered ophthalmology e-learning tool for medical students and junior doctors.")
-    st.markdown("---")
+    col_hero, col_form = st.columns([1, 1], gap="large")
 
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        st.subheader("Sign In / Register")
-        name = st.text_input("Full name", placeholder="e.g. Tan Wei Ming")
-        email = st.text_input("Email address", placeholder="e.g. student@nus.edu.sg")
+    with col_hero:
+        st.markdown("""
+        <div class="snec-login-hero">
+          <div class="snec-login-eyeball">👁️</div>
+          <div class="snec-login-title">Learn to see<br>what others <em>miss.</em></div>
+          <div class="snec-login-desc">
+            An AI-powered ophthalmology training platform for medical students
+            and junior doctors at the Singapore National Eye Centre.
+          </div>
+          <div class="snec-feature-grid">
+            <div class="snec-feature-item">
+              <div class="snec-feature-icon">💬</div>
+              <div>
+                <div class="snec-feature-name">Chatbot Tutor</div>
+                <div class="snec-feature-desc">Structured Q&amp;A with clinical pearls</div>
+              </div>
+            </div>
+            <div class="snec-feature-item">
+              <div class="snec-feature-icon">🃏</div>
+              <div>
+                <div class="snec-feature-name">Flash-cards</div>
+                <div class="snec-feature-desc">SM-2 spaced repetition engine</div>
+              </div>
+            </div>
+            <div class="snec-feature-item">
+              <div class="snec-feature-icon">🏥</div>
+              <div>
+                <div class="snec-feature-name">Case Simulator</div>
+                <div class="snec-feature-desc">Interactive AI patient encounters</div>
+              </div>
+            </div>
+            <div class="snec-feature-item">
+              <div class="snec-feature-icon">🔬</div>
+              <div>
+                <div class="snec-feature-name">Image Quiz</div>
+                <div class="snec-feature-desc">Retinal image interpretation</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        with st.expander("📋 Data Collection Notice (PDPA)"):
+    with col_form:
+        st.markdown("<div style='padding-top:2.5rem'>", unsafe_allow_html=True)
+        st.markdown(section_label("Sign in / Register"), unsafe_allow_html=True)
+
+        name  = st.text_input("Full name",      placeholder="e.g. Tan Wei Ming")
+        email = st.text_input("Email address",  placeholder="e.g. student@nus.edu.sg")
+
+        with st.expander("📋 PDPA Data Collection Notice"):
             st.markdown(PDPA_NOTICE)
 
-        consent = st.checkbox("I have read and consent to the above data collection notice")
+        consent = st.checkbox("I have read and consent to the above notice")
 
-        if st.button("Enter Platform", type="primary", use_container_width=True):
+        if st.button("Enter Platform →", type="primary", use_container_width=True):
             if not name.strip():
                 st.error("Please enter your full name.")
             elif not email.strip() or "@" not in email:
                 st.error("Please enter a valid email address.")
             elif not consent:
-                st.error("You must consent to the data collection notice to use this platform.")
+                st.error("You must accept the data collection notice to continue.")
             else:
                 with st.spinner("Setting up your account..."):
                     try:
@@ -168,63 +221,69 @@ def page_login() -> None:
                     except Exception as e:
                         st.error(f"Login failed: {e}")
 
-    with col2:
-        st.markdown("### What you can do here")
-        st.markdown("""
-        | Feature | Description |
-        |---|---|
-        | 💬 Chatbot Tutor | Ask ophthalmology questions, get structured answers |
-        | 🃏 Flash-cards | Spaced repetition review of key concepts |
-        | 🏥 Case Simulator | Interactive clinical case with AI patient |
-        | 🔬 Image Quiz | Describe retinal images and get scored |
-        """)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
 # DASHBOARD PAGE
 # ---------------------------------------------------------------------------
 def page_dashboard() -> None:
-    st.title(f"🏠 Dashboard")
-    st.markdown(f"Welcome back, **{st.session_state.student_name}**.")
+    name = st.session_state.student_name
+    st.markdown(ph("Dashboard", f"Welcome back, {name}."), unsafe_allow_html=True)
 
-    # System health strip
-    with st.expander("🔧 System Status", expanded=False):
+    with st.expander("System Status", expanded=False):
         from tools.shared.health_monitor import (
             check_anthropic, check_google_sheets,
             check_google_drive, check_tmp_dir,
         )
         checks = [check_anthropic(), check_google_sheets(), check_google_drive(), check_tmp_dir()]
-        cols = st.columns(len(checks))
-        colors = {"PASS": "🟢", "WARN": "🟡", "FAIL": "🔴", "INFO": "🔵"}
-        for col, (status, name, detail) in zip(cols, checks):
-            with col:
-                st.metric(label=name, value=f"{colors.get(status, '⚪')} {status}",
-                          help=detail)
+        _status_icons = {"PASS": "🟢", "WARN": "🟡", "FAIL": "🔴", "INFO": "🔵"}
+        hcols = st.columns(len(checks))
+        for col, (status, sname, detail) in zip(hcols, checks):
+            col.metric(sname, f"{_status_icons.get(status,'⚪')} {status}", help=detail)
 
-    st.markdown("---")
-
-    # Study metrics
     get_rows, _, __ = _gsheets()
     sid = st.session_state.student_id
 
     try:
-        sessions = get_rows("snec_sessions", {"student_id": sid})
-        cards = get_rows("snec_flashcards", {"student_id": sid})
-        cases = get_rows("snec_case_results", {"student_id": sid})
-        images = get_rows("snec_image_results", {"student_id": sid})
+        sessions = get_rows("snec_sessions",      {"student_id": sid})
+        cards    = get_rows("snec_flashcards",    {"student_id": sid})
+        cases    = get_rows("snec_case_results",  {"student_id": sid})
+        images   = get_rows("snec_image_results", {"student_id": sid})
 
-        today = date.today().isoformat()
+        today     = date.today().isoformat()
         due_cards = [c for c in cards if not c.get("next_due_date") or c["next_due_date"] <= today]
+        due_txt   = f"{len(due_cards)} due today" if due_cards else "all caught up"
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Chatbot Sessions", len(sessions))
-        c2.metric("Flash-cards", len(cards), delta=f"{len(due_cards)} due today" if due_cards else None)
-        c3.metric("Cases Attempted", len(cases))
-        c4.metric("Image Quizzes", len(images))
+        # ── Stat cards ──────────────────────────────────────────────────────
+        st.markdown(section_label("Activity Overview"), unsafe_allow_html=True)
+        s1, s2, s3, s4 = st.columns(4)
+        with s1:
+            st.markdown(stat_card("Chatbot Sessions", str(len(sessions)),
+                                  "total Q&A sessions", "c-teal"), unsafe_allow_html=True)
+        with s2:
+            st.markdown(stat_card("Flash-cards", str(len(cards)),
+                                  due_txt, "c-gold"), unsafe_allow_html=True)
+        with s3:
+            st.markdown(stat_card("Cases Attempted", str(len(cases)),
+                                  "clinical simulations", "c-ok"), unsafe_allow_html=True)
+        with s4:
+            st.markdown(stat_card("Image Quizzes", str(len(images)),
+                                  "retinal images reviewed", "c-blue"), unsafe_allow_html=True)
 
-        # Weak topics
+        # ── Due cards CTA ────────────────────────────────────────────────────
+        if due_cards:
+            st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+            c_info, c_btn = st.columns([5, 1])
+            with c_info:
+                st.info(f"📚 {len(due_cards)} flash-card(s) are due for review today.")
+            with c_btn:
+                if st.button("Review now →", type="primary", use_container_width=True):
+                    st.session_state.page = "Flashcards"
+                    st.rerun()
+
+        # ── Topic performance ────────────────────────────────────────────────
         if cards:
-            st.markdown("### 📊 Flash-card Performance")
             from collections import defaultdict
             topic_ef: dict = defaultdict(list)
             for c in cards:
@@ -234,28 +293,26 @@ def page_dashboard() -> None:
                     ef = 2.5
                 topic_ef[c.get("topic_tag", "unknown")].append(ef)
 
-            topic_avg = {t: sum(v) / len(v) for t, v in topic_ef.items()}
+            topic_avg   = {t: sum(v)/len(v) for t, v in topic_ef.items()}
             sorted_topics = sorted(topic_avg.items(), key=lambda x: x[1])
 
-            for topic, ef in sorted_topics:
-                pct = min(100, int((ef - 1.3) / (3.0 - 1.3) * 100))
-                color = "🔴" if pct < 30 else "🟡" if pct < 60 else "🟢"
-                st.markdown(f"{color} **{topic}** — easiness {ef:.2f}")
-                st.progress(pct / 100)
+            st.markdown(section_label("Flash-card Mastery by Topic"), unsafe_allow_html=True)
+            t_left, t_right = st.columns(2)
+            half = (len(sorted_topics) + 1) // 2
+            for i, (t, ef) in enumerate(sorted_topics):
+                col = t_left if i < half else t_right
+                with col:
+                    st.markdown(topic_bar(t, ef), unsafe_allow_html=True)
 
-        if due_cards:
-            st.info(f"📚 You have **{len(due_cards)} flash-card(s)** due for review today.")
-            if st.button("Start Flash-card Review →", type="primary"):
-                st.session_state.page = "Flashcards"
-                st.rerun()
-
+        # ── Getting started ──────────────────────────────────────────────────
         if not sessions and not cards and not cases:
-            st.markdown("### 👋 Getting Started")
-            st.markdown("""
-            1. Head to **💬 Chatbot Tutor** to ask your first ophthalmology question
-            2. Flash-cards will be automatically generated at the end of each session
-            3. Try a **🏥 Clinical Case** to test your diagnostic skills
-            """)
+            st.markdown(section_label("Getting Started"), unsafe_allow_html=True)
+            st.markdown(start_item(1, "Ask your first question",
+                "Open Chatbot Tutor and ask anything about ophthalmology."), unsafe_allow_html=True)
+            st.markdown(start_item(2, "Review your flash-cards",
+                "Cards are auto-generated from every session you complete."), unsafe_allow_html=True)
+            st.markdown(start_item(3, "Simulate a clinical case",
+                "Interview an AI patient, request investigations, make your diagnosis."), unsafe_allow_html=True)
 
     except Exception as e:
         st.error(f"Could not load study data: {e}")
@@ -265,8 +322,10 @@ def page_dashboard() -> None:
 # CHATBOT PAGE
 # ---------------------------------------------------------------------------
 def page_chatbot() -> None:
-    st.title("💬 Chatbot Tutor")
-    st.caption("Ask any ophthalmology question. Structured responses: Explanation → Mechanism → Clinical Pearl → Check Your Understanding")
+    st.markdown(ph("Chatbot Tutor",
+        "Ask any ophthalmology question — every answer follows: "
+        "Explanation → Mechanism → Clinical Pearl → Check Your Understanding."),
+        unsafe_allow_html=True)
 
     ask, _, MOCK_MODE, MODEL = _claude()
     if MOCK_MODE:
@@ -333,7 +392,9 @@ def page_chatbot() -> None:
 # FLASHCARDS PAGE
 # ---------------------------------------------------------------------------
 def page_flashcards() -> None:
-    st.title("🃏 Flash-card Review")
+    st.markdown(ph("Flash-card Review",
+        "Spaced repetition — only cards you're about to forget appear today."),
+        unsafe_allow_html=True)
 
     get_rows, _, update_row = _gsheets()
     from tools.flashcards.sm2 import next_review, due_date
@@ -355,55 +416,79 @@ def page_flashcards() -> None:
             return
 
     cards = st.session_state.review_cards
-    idx = st.session_state.review_index
+    idx   = st.session_state.review_index
 
     if not cards:
-        st.success("✅ No cards due for review today. Come back tomorrow!")
-        if st.button("Refresh"):
+        st.markdown(
+            '<div class="snec-card" style="border-color:rgba(16,185,129,.3)">'
+            '  <div style="font-size:2rem;margin-bottom:.75rem">✓</div>'
+            '  <div class="snec-card-q" style="font-size:1.2rem">All cards reviewed for today.</div>'
+            '  <div class="snec-card-a" style="margin-top:.5rem">Come back tomorrow for your next session.</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Refresh", use_container_width=False):
             st.session_state.review_cards = []
             st.rerun()
         return
 
     if idx >= len(cards):
         passed = st.session_state.get("review_passed", 0)
+        total  = len(cards)
+        pct    = int(passed / total * 100) if total else 0
         st.balloons()
-        st.success(f"🎉 Session complete! You reviewed **{len(cards)}** card(s).")
-        st.metric("Score", f"{passed}/{len(cards)}", f"{int(passed/len(cards)*100)}%")
-        if st.button("Start Over"):
+        st.markdown(
+            f'<div class="snec-card" style="border-color:rgba(6,214,192,.3)">'
+            f'  <div style="font-size:2.5rem;margin-bottom:.6rem">🎉</div>'
+            f'  <div class="snec-card-q">Session complete!</div>'
+            f'  <div class="snec-card-a" style="margin-top:.5rem">'
+            f'    {passed} of {total} cards recalled correctly &nbsp;·&nbsp; {pct}%'
+            f'  </div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Start Over", type="primary"):
             st.session_state.review_cards = []
             st.session_state.review_passed = 0
             st.rerun()
         return
 
-    # Progress bar
-    st.progress(idx / len(cards), text=f"Card {idx + 1} of {len(cards)}")
+    # Progress
+    st.markdown(
+        named_progress(f"Card {idx+1} of {len(cards)}",
+                       f"{len(cards)-idx} remaining", idx / len(cards)),
+        unsafe_allow_html=True,
+    )
 
-    card = cards[idx]
+    card  = cards[idx]
     topic = card.get("topic_tag", "")
-    if topic:
-        st.caption(f"Topic: **{topic}**")
 
-    # Question
-    st.markdown("### ❓ Question")
-    st.info(card["front"])
+    # Card face — question
+    st.markdown(flashcard_q(card["front"], topic), unsafe_allow_html=True)
 
-    # Reveal / Answer
     if not st.session_state.card_revealed:
-        if st.button("Reveal Answer 👁️", type="primary", use_container_width=True):
+        st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+        if st.button("Reveal Answer  👁️", type="primary", use_container_width=True):
             st.session_state.card_revealed = True
             st.rerun()
     else:
-        st.markdown("### ✅ Answer")
-        st.success(card["back"])
+        st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+        # Card face — answer
+        st.markdown(flashcard_a(card["back"]), unsafe_allow_html=True)
 
-        st.markdown("### How well did you recall this?")
-        cols = st.columns(6)
-        labels = ["0\nBlank", "1\nHint", "2\nSaw ans", "3\nHard", "4\nHesitate", "5\nPerfect"]
-
-        for i, (col, label) in enumerate(zip(cols, labels)):
+        st.markdown(section_label("How well did you recall this?"), unsafe_allow_html=True)
+        cols  = st.columns(6)
+        labels = [
+            ("0", "Blank",    "bd"),
+            ("1", "Hint",     "bd"),
+            ("2", "Saw ans",  "bm"),
+            ("3", "Hard",     "bm"),
+            ("4", "Hesitate", "bo"),
+            ("5", "Perfect",  "bt"),
+        ]
+        for i, (col, (num, lbl, _)) in enumerate(zip(cols, labels)):
             with col:
-                if st.button(label, key=f"q{i}", use_container_width=True):
-                    # Update SM-2
+                if st.button(f"{num}\n{lbl}", key=f"q{i}", use_container_width=True):
                     try:
                         ef = float(card.get("easiness_factor") or 2.5)
                         iv = int(card.get("interval_days") or 0)
@@ -414,17 +499,15 @@ def page_flashcards() -> None:
                     new_iv, new_ef, new_rp = next_review(i, rp, ef, iv)
                     update_row("snec_flashcards", "card_id", card["card_id"], {
                         "easiness_factor": f"{new_ef:.2f}",
-                        "interval_days": str(new_iv),
+                        "interval_days":   str(new_iv),
                         "repetition_count": str(new_rp),
-                        "next_due_date": due_date(new_iv),
-                        "last_reviewed": date.today().isoformat(),
+                        "next_due_date":   due_date(new_iv),
+                        "last_reviewed":   date.today().isoformat(),
                     })
-
                     if i >= 3:
                         st.session_state.review_passed = st.session_state.get("review_passed", 0) + 1
-
-                    st.session_state.review_index += 1
-                    st.session_state.card_revealed = False
+                    st.session_state.review_index   += 1
+                    st.session_state.card_revealed   = False
                     st.rerun()
 
 
@@ -476,27 +559,39 @@ def page_cases() -> None:
         if not _prog_ok:
             return
         try:
-            prog = get_progress(sid)
-            info = get_level_info(prog["total_xp"])
-            c1, c2, c3, c4 = st.columns([1, 3, 3, 1])
-            with c1:
-                st.markdown(f"## {info['icon']}")
-            with c2:
-                st.markdown(f"**{info['name']}** · Level {info['level_num']}")
-                st.caption(f"{prog['total_xp']:,} XP · {prog['cases_completed']} cases done"
-                           + (f" · 🔥 {prog['streak_days']}-day streak" if prog.get("streak_days", 0) > 1 else ""))
-            with c3:
-                if info["next_threshold"]:
-                    st.progress(
-                        info["progress_pct"],
-                        text=f"{info['xp_to_next']:,} XP until {info['next_name']}",
-                    )
-                else:
-                    st.success("Max rank reached!")
-            with c4:
-                n = len(prog.get("badges", []))
-                if n:
-                    st.markdown(f"🏅 **{n}**")
+            prog  = get_progress(sid)
+            info  = get_level_info(prog["total_xp"])
+            w     = int(info["progress_pct"] * 100)
+            extra = ""
+            if prog.get("streak_days", 0) > 1:
+                extra += f' <span style="color:var(--gold)">· 🔥 {prog["streak_days"]}d</span>'
+            nb = len(prog.get("badges", []))
+            if nb:
+                extra += f' <span style="color:var(--txt-3)">· 🏅 {nb}</span>'
+            next_txt = (f"{info['xp_to_next']:,} XP until {info['next_name']}"
+                        if info["next_threshold"] else "Maximum rank achieved")
+            st.markdown(f"""
+            <div style="background:var(--bg-card);border:1px solid var(--border);
+                border-radius:var(--r2);padding:.85rem 1.25rem;
+                display:flex;align-items:center;gap:1.2rem;margin-bottom:.9rem">
+              <div style="font-size:1.75rem;line-height:1">{info['icon']}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:.84rem;font-weight:600;color:var(--txt);white-space:nowrap">
+                  {info['name']}
+                  <span style="color:var(--txt-3);font-weight:400;font-size:.76rem">
+                    &nbsp;Lv.{info['level_num']}&nbsp;·&nbsp;{prog['total_xp']:,} XP
+                  </span>{extra}
+                </div>
+                <div style="background:var(--bg-raised);border-radius:99px;height:5px;
+                    overflow:hidden;margin:.4rem 0">
+                  <div style="width:{w}%;height:100%;border-radius:99px;
+                      background:linear-gradient(90deg,var(--accent),#04C4B2);
+                      box-shadow:0 0 8px var(--accent-glow)"></div>
+                </div>
+                <div style="font-size:.68rem;color:var(--txt-3)">{next_txt}</div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
         except Exception:
             pass
 
@@ -504,9 +599,10 @@ def page_cases() -> None:
     # VIEW 1 — CASE SELECTION
     # ════════════════════════════════════════════════════════════════════════
     if st.session_state.current_case is None and st.session_state.case_result is None:
-        st.title("🏥 Clinical Case Simulator")
+        st.markdown(ph("Case Simulator",
+            "Interview the AI patient · Request investigations · Diagnose · Manage."),
+            unsafe_allow_html=True)
         _level_banner()
-        st.markdown("---")
 
         if MOCK_MODE:
             st.warning("⚠️ Mock mode — patient responses and evaluation are simulated.")
@@ -516,8 +612,7 @@ def page_cases() -> None:
             st.error("No cases available. Add JSON files to the `cases/` directory.")
             return
 
-        st.subheader("Choose a Case")
-        st.caption("Interview the AI patient, request investigations, then submit your diagnosis and management plan.")
+        st.markdown(section_label("Available Cases"), unsafe_allow_html=True)
 
         # Case cards — up to 3 per row
         cases_data: list[dict] = []
@@ -563,15 +658,23 @@ def page_cases() -> None:
             try:
                 prog = get_progress(sid)
                 if prog.get("badges"):
-                    st.markdown("---")
-                    st.subheader("🏅 Your Badges")
-                    bcols = st.columns(min(len(prog["badges"]), 5))
+                    st.markdown(section_label("Your Badges"), unsafe_allow_html=True)
+                    bcols = st.columns(min(len(prog["badges"]), 6))
                     for col, bkey in zip(bcols, prog["badges"]):
-                        name, icon, desc = BADGES.get(bkey, (bkey, "🏅", ""))
+                        bname, bicon, bdesc = BADGES.get(bkey, (bkey, "🏅", ""))
                         with col:
-                            st.markdown(f"#### {icon}")
-                            st.markdown(f"**{name}**")
-                            st.caption(desc)
+                            st.markdown(
+                                f'<div style="text-align:center;background:var(--bg-raised);'
+                                f'border:1px solid var(--border);border-radius:var(--r);'
+                                f'padding:.8rem .5rem">'
+                                f'  <div style="font-size:1.6rem;margin-bottom:.3rem">{bicon}</div>'
+                                f'  <div style="font-size:.7rem;font-weight:600;color:var(--txt);'
+                                f'    margin-bottom:.15rem">{bname}</div>'
+                                f'  <div style="font-size:.62rem;color:var(--txt-3);line-height:1.35">'
+                                f'    {bdesc}</div>'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
             except Exception:
                 pass
         return
@@ -618,81 +721,95 @@ def page_cases() -> None:
 
         xp = st.session_state.case_xp_result or {}
 
-        # Header with grade medal
+        # Header
         grade = "🥇" if pct >= 90 else "🥈" if pct >= 75 else "🥉" if pct >= 60 else "📋"
-        st.title(f"{grade} Case Complete: {case['title']}")
+        st.markdown(ph(f"{grade} {case['title']}",
+            f"Case complete · {total}/40 points · {pct}%"),
+            unsafe_allow_html=True)
 
-        # XP reward banner
+        # XP + level row
         if xp.get("total_xp", 0) > 0:
-            st.success(f"### +{xp['total_xp']:,} XP earned!")
-            _level_banner()
+            xp_col, lv_col = st.columns([1, 2], gap="large")
+            with xp_col:
+                st.markdown(xp_toast(xp["total_xp"]), unsafe_allow_html=True)
+            with lv_col:
+                _level_banner()
+                with st.expander("⚡ XP Breakdown"):
+                    rows_html = f'<div style="font-size:.82rem;color:var(--txt-2)">Base: <b style="color:var(--txt)">{xp.get("base_xp",0)} XP</b> (score × 10)</div>'
+                    for bname, bval in xp.get("bonuses", []):
+                        rows_html += f'<div style="font-size:.8rem;color:#6EE7B7">+ {bval} XP &nbsp;<span style="color:var(--txt-3)">{bname}</span></div>'
+                    for pname, pval in xp.get("penalties", []):
+                        rows_html += f'<div style="font-size:.8rem;color:#FCA5A5">{pval} XP &nbsp;<span style="color:var(--txt-3)">{pname}</span></div>'
+                    rows_html += f'<div style="font-size:.86rem;font-weight:700;color:var(--accent);margin-top:.4rem;border-top:1px solid var(--border);padding-top:.4rem">Total: {xp.get("total_xp",0):,} XP</div>'
+                    st.markdown(rows_html, unsafe_allow_html=True)
 
-            with st.expander("⚡ XP Breakdown", expanded=False):
-                st.markdown(f"Base score: **{xp.get('base_xp', 0)} XP** (score × 10)")
-                for bname, bval in xp.get("bonuses", []):
-                    st.markdown(f"+ **{bval} XP** — *{bname}*")
-                for pname, pval in xp.get("penalties", []):
-                    st.markdown(f"**{pval} XP** — *{pname}*")
-                st.markdown(f"---\n**Total: {xp.get('total_xp', 0):,} XP**")
-
-        st.markdown("---")
+        st.markdown(section_label("Performance Breakdown"), unsafe_allow_html=True)
 
         # Domain score cards
-        st.subheader("📊 Performance Breakdown")
         domains = [
-            ("📝 History",        "history_score",        "history_feedback"),
-            ("🔬 Investigations", "investigations_score",  "investigations_feedback"),
-            ("🎯 Diagnosis",      "diagnosis_score",       "diagnosis_feedback"),
-            ("💊 Management",     "management_score",      "management_feedback"),
+            ("History",        "📝", "history_score",        "history_feedback"),
+            ("Investigations", "🔬", "investigations_score",  "investigations_feedback"),
+            ("Diagnosis",      "🎯", "diagnosis_score",       "diagnosis_feedback"),
+            ("Management",     "💊", "management_score",      "management_feedback"),
         ]
         dcols = st.columns(4)
-        for col, (label, sk, _) in zip(dcols, domains):
-            score = int(result.get(sk, 0))
-            dot   = "🟢" if score >= 8 else "🟡" if score >= 5 else "🔴"
+        for col, (lbl, icon, sk, _) in zip(dcols, domains):
             with col:
-                st.metric(label, f"{dot} {score}/10")
-                st.progress(score / 10)
+                st.markdown(domain_card(lbl, icon, int(result.get(sk, 0))),
+                            unsafe_allow_html=True)
 
-        total_dot = "🟢" if total >= 30 else "🟡" if total >= 20 else "🔴"
-        st.metric("Total Score", f"{total_dot} {total}/40  ({pct}%)")
+        # Total score bar
+        tc = "#10B981" if total >= 30 else "#F59E0B" if total >= 20 else "#EF4444"
+        st.markdown(
+            f'<div style="margin-top:.75rem">'
+            f'{named_progress(f"Total  {total}/40", f"{pct}%", total/40)}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
         # Written feedback
         with st.expander("📋 Detailed Feedback", expanded=True):
-            for label, sk, fbk in domains:
+            for lbl, icon, sk, fbk in domains:
                 fb    = result.get(fbk, "")
                 score = int(result.get(sk, 0))
                 if fb:
                     if score >= 8:
-                        st.success(f"**{label} ({score}/10):** {fb}")
+                        st.success(f"**{icon} {lbl} ({score}/10):** {fb}")
                     elif score >= 5:
-                        st.warning(f"**{label} ({score}/10):** {fb}")
+                        st.warning(f"**{icon} {lbl} ({score}/10):** {fb}")
                     else:
-                        st.error(f"**{label} ({score}/10):** {fb}")
+                        st.error(f"**{icon} {lbl} ({score}/10):** {fb}")
             if result.get("overall_feedback"):
                 st.info(f"**Overall:** {result['overall_feedback']}")
 
         # New badges
         new_badges = xp.get("new_badges", [])
         if new_badges:
-            st.markdown("---")
-            st.subheader("🏅 Badges Unlocked!")
-            bcols = st.columns(min(len(new_badges), 4))
+            st.markdown(section_label("Badges Unlocked"), unsafe_allow_html=True)
+            bcols = st.columns(min(len(new_badges), 5))
             for col, bkey in zip(bcols, new_badges):
-                name, icon, desc = BADGES.get(bkey, (bkey, "🏅", ""))
+                bname, bicon, bdesc = BADGES.get(bkey, (bkey, "🏅", ""))
                 with col:
-                    st.markdown(f"### {icon}")
-                    st.markdown(f"**{name}**")
-                    st.caption(desc)
+                    st.markdown(
+                        f'<div style="text-align:center;background:var(--accent-10);'
+                        f'border:1px solid var(--accent-20);border-radius:var(--r);padding:.9rem .5rem">'
+                        f'  <div style="font-size:1.7rem;margin-bottom:.3rem">{bicon}</div>'
+                        f'  <div style="font-size:.72rem;font-weight:700;color:var(--accent);'
+                        f'    margin-bottom:.12rem">{bname}</div>'
+                        f'  <div style="font-size:.62rem;color:var(--txt-3);line-height:1.35">{bdesc}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
 
         # Actions
-        st.markdown("---")
+        st.markdown("<div style='height:.75rem'></div>", unsafe_allow_html=True)
         a1, a2 = st.columns(2)
         with a1:
-            if st.button("🔄 Try Another Case", type="primary", use_container_width=True):
+            if st.button("↩ Try Another Case", type="primary", use_container_width=True):
                 _reset_case_state()
                 st.rerun()
         with a2:
-            if st.button("🏠 Go to Dashboard", use_container_width=True):
+            if st.button("🏠 Dashboard", use_container_width=True):
                 _reset_case_state()
                 st.session_state.page = "Dashboard"
                 st.rerun()
@@ -758,16 +875,20 @@ def page_cases() -> None:
             st.caption("No hints remaining")
 
     # Main area header
-    st.title(f"🏥 {case['title']}")
+    diff_label = _DIFF_STARS.get(case.get("difficulty",""), "⭐⭐")
+    st.markdown(ph(case["title"],
+        f"{diff_label} {case.get('difficulty','').capitalize()}  ·  "
+        f"Interview the patient, request investigations, then submit."),
+        unsafe_allow_html=True)
     if MOCK_MODE:
         st.warning("⚠️ Mock mode — patient responses are simulated.")
-    st.caption(
-        "Interview the patient · Request investigations · Then submit your diagnosis and management plan."
-    )
 
-    # Show active hints above conversation
+    # Active hints
     for hint in st.session_state.get("case_hint_messages", []):
-        st.info(f"💡 **Hint:** {hint}")
+        st.markdown(
+            f'<div class="snec-hint">💡 <strong>Hint:</strong> {hint}</div>',
+            unsafe_allow_html=True,
+        )
 
     # Patient system prompt
     patient_prompt = (
@@ -817,8 +938,10 @@ def page_cases() -> None:
 # IMAGE QUIZ PAGE
 # ---------------------------------------------------------------------------
 def page_image_quiz() -> None:
-    st.title("🔬 Retinal Image Quiz")
-    st.caption("Describe the retinal image systematically and receive scored feedback.")
+    st.markdown(ph("Image Quiz",
+        "Describe the retinal image systematically — you'll be scored on what you identify, "
+        "miss, and over-call."),
+        unsafe_allow_html=True)
 
     _, __, MOCK_MODE, ___ = _claude()
     if MOCK_MODE:
@@ -843,30 +966,52 @@ def page_image_quiz() -> None:
         st.error("No images found in `images/` directory. Add PNG/JPG files with matching JSON metadata.")
         return
 
-    options = {f"{m.get('modality','').replace('_',' ').title()} — {img.name}": (img, m)
-               for img, m in images_with_meta}
-    chosen = st.selectbox("Select an image", list(options.keys()))
+    options = {
+        f"{m.get('modality','').replace('_',' ').title()} — {img.stem}": (img, m)
+        for img, m in images_with_meta
+    }
+    chosen    = st.selectbox("Select an image", list(options.keys()))
     img_path, img_meta = options[chosen]
 
-    col1, col2 = st.columns([1, 1])
+    col_img, col_form = st.columns([1, 1], gap="large")
 
-    with col1:
-        st.image(str(img_path), caption=f"{img_meta.get('modality','').replace('_',' ').title()} | {img_meta.get('eye','').title()} eye | {img_meta.get('difficulty','').upper()}", use_container_width=True)
+    with col_img:
+        modality   = img_meta.get("modality", "").replace("_", " ").title()
+        eye        = img_meta.get("eye", "").title()
+        difficulty = img_meta.get("difficulty", "").upper()
+        caption    = "  ·  ".join(filter(None, [modality, f"{eye} eye" if eye else "", difficulty]))
+        st.image(str(img_path), caption=caption, use_container_width=True)
 
-    with col2:
-        st.markdown("### Describe this image systematically:")
-        st.markdown("""
-        - **Optic disc** — size, cup:disc ratio, rim, haemorrhages
-        - **Macula** — foveal reflex, drusen, exudates, haemorrhage
-        - **Blood vessels** — calibre, A:V ratio, crossings
-        - **Periphery** — any lesions
-        - **Diagnosis** — your differential
-        """)
+        # Findings checklist guide
+        st.markdown(
+            '<div style="background:var(--bg-raised);border:1px solid var(--border);'
+            'border-radius:var(--r);padding:.85rem 1rem;margin-top:.5rem">'
+            '<div style="font-size:.66rem;font-weight:700;text-transform:uppercase;'
+            'letter-spacing:.1em;color:var(--txt-3);margin-bottom:.6rem">Systematic Approach</div>'
+            '<div style="display:grid;gap:.35rem">'
+            + "".join(
+                f'<div style="display:flex;gap:.5rem;align-items:flex-start">'
+                f'  <span style="color:var(--accent);font-size:.75rem;margin-top:.1rem">◆</span>'
+                f'  <span style="font-size:.78rem;color:var(--txt-2)">{item}</span>'
+                f'</div>'
+                for item in [
+                    "<b style='color:var(--txt)'>Optic disc</b> — size, C:D ratio, rim, haemorrhages",
+                    "<b style='color:var(--txt)'>Macula</b> — foveal reflex, drusen, exudates",
+                    "<b style='color:var(--txt)'>Blood vessels</b> — calibre, A:V ratio, crossings",
+                    "<b style='color:var(--txt)'>Periphery</b> — lesions, detachment",
+                    "<b style='color:var(--txt)'>Diagnosis</b> — primary diagnosis &amp; differentials",
+                ]
+            )
+            + '</div></div>',
+            unsafe_allow_html=True,
+        )
 
-        description = st.text_area("Your description", height=200,
-                                   placeholder="The optic disc shows...")
+    with col_form:
+        st.markdown(section_label("Your Description"), unsafe_allow_html=True)
+        description = st.text_area("", height=220,
+                                   placeholder="The optic disc shows a cup-to-disc ratio of approximately...")
 
-        if st.button("Submit Description", type="primary", use_container_width=True):
+        if st.button("Submit for Evaluation →", type="primary", use_container_width=True):
             if not description.strip():
                 st.error("Please enter a description before submitting.")
             else:
@@ -877,21 +1022,31 @@ def page_image_quiz() -> None:
                         log_image_result(st.session_state.student_id, img_meta, result)
 
                         score = result.get("score", 0)
-                        colour = "🟢" if score >= 7 else "🟡" if score >= 4 else "🔴"
-                        st.metric("Score", f"{colour} {score}/10")
+                        sc    = "#10B981" if score >= 7 else "#F59E0B" if score >= 4 else "#EF4444"
 
-                        correct = result.get("correct_findings", [])
-                        missed = result.get("missed_findings", [])
+                        st.markdown(
+                            f'<div style="background:var(--bg-raised);border:1px solid {sc}33;'
+                            f'border-radius:var(--r2);padding:1rem 1.25rem;margin-bottom:.75rem">'
+                            f'  <div style="font-size:.66rem;font-weight:700;text-transform:uppercase;'
+                            f'    letter-spacing:.1em;color:var(--txt-3);margin-bottom:.25rem">Score</div>'
+                            f'  <div style="font-family:var(--serif);font-size:2.5rem;color:{sc};line-height:1">'
+                            f'    {score}<span style="font-size:1rem;color:var(--txt-3)">/10</span></div>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+
+                        correct   = result.get("correct_findings", [])
+                        missed    = result.get("missed_findings", [])
                         incorrect = result.get("incorrect_findings", [])
 
                         if correct:
-                            st.success("**Correctly identified:**\n" + "\n".join(f"✓ {f}" for f in correct))
+                            st.success("**Identified:** " + " · ".join(f"✓ {f}" for f in correct))
                         if missed:
-                            st.warning("**Missed findings:**\n" + "\n".join(f"✗ {f}" for f in missed))
+                            st.warning("**Missed:** " + " · ".join(f"✗ {f}" for f in missed))
                         if incorrect:
-                            st.error("**Over-called:**\n" + "\n".join(f"✗ {f}" for f in incorrect))
-
-                        st.info(f"**Feedback:** {result.get('feedback', '')}")
+                            st.error("**Over-called:** " + " · ".join(f"✗ {f}" for f in incorrect))
+                        if result.get("feedback"):
+                            st.info(result["feedback"])
                     except Exception as e:
                         st.error(f"Evaluation failed: {e}")
 
@@ -900,8 +1055,8 @@ def page_image_quiz() -> None:
 # ADMIN PAGE
 # ---------------------------------------------------------------------------
 def page_admin() -> None:
-    st.title("⚙️ Admin")
-    st.caption("System maintenance tools — for platform administrators.")
+    st.markdown(ph("Admin", "System maintenance tools — for platform administrators."),
+                unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
