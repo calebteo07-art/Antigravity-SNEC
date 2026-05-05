@@ -21,43 +21,58 @@ SNEC_CSS = """
    TOKENS
 ═══════════════════════════════════════════════════ */
 :root {
-  --bg:          #07090F;
-  --bg-surface:  #0C1120;
-  --bg-card:     #101826;
-  --bg-raised:   #162033;
+  /* ── Surfaces ── */
+  --bg:          #06080F;
+  --bg-surface:  #0B0F1C;
+  --bg-card:     #0F1624;
+  --bg-raised:   #141D2E;
 
-  --border:      #1A2540;
-  --border-mid:  #243356;
-  --border-hi:   #2E4070;
+  /* ── Borders — 3-tier precision system ── */
+  --border:      rgba(255,255,255,0.05);
+  --border-mid:  rgba(255,255,255,0.09);
+  --border-hi:   rgba(255,255,255,0.14);
 
+  /* ── Accent — teal, kept as brand identity ── */
   --accent:      #06D6C0;
   --accent-10:   rgba(6,214,192,.10);
   --accent-20:   rgba(6,214,192,.20);
-  --accent-glow: rgba(6,214,192,.25);
+  --accent-glow: rgba(6,214,192,.22);
 
+  /* ── Semantic ── */
   --gold:        #F59E0B;
   --gold-10:     rgba(245,158,11,.10);
   --gold-20:     rgba(245,158,11,.20);
-
   --ok:          #10B981;
   --warn:        #F59E0B;
   --danger:      #EF4444;
   --blue:        #3B82F6;
 
-  --txt:         #E4EEFF;
+  /* ── Text hierarchy ── */
+  --txt:         #EBF0FF;
   --txt-2:       #7A96C2;
-  --txt-3:       #3D5580;
+  --txt-3:       #3A5075;
 
+  /* ── Fonts ── */
   --serif:       'DM Serif Display', Georgia, serif;
   --sans:        'Instrument Sans', system-ui, sans-serif;
   --mono:        'JetBrains Mono', monospace;
 
+  /* ── Radii ── */
   --r:   8px;
   --r2: 14px;
   --r3: 20px;
 
-  --sh:  0 4px 20px rgba(0,0,0,.55);
-  --sh2: 0 8px 40px rgba(0,0,0,.65);
+  /* ── Shadow system (Stripe-philosophy: soft, layered, never harsh) ── */
+  --sh-xs:  0 1px 2px rgba(0,0,0,0.08);
+  --sh-sm:  0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
+  --sh:     0 4px 8px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12);
+  --sh2:    0 8px 24px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.16);
+  --sh3:    0 16px 48px rgba(0,0,0,0.38), 0 4px 12px rgba(0,0,0,0.2);
+
+  /* ── Card ring glows ── */
+  --ring-card:       0 0 0 1px var(--border);
+  --ring-card-hover: 0 0 0 1px rgba(6,214,192,0.22), 0 0 18px rgba(6,214,192,0.07);
+  --ring-focus:      0 0 0 3px rgba(6,214,192,0.18);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -65,11 +80,13 @@ SNEC_CSS = """
 ═══════════════════════════════════════════════════ */
 .stApp {
   background:
-    radial-gradient(ellipse 100% 45% at 50% -5%,
-      rgba(6,214,192,.055) 0%, transparent 65%),
-    radial-gradient(ellipse 50% 30% at 95% 85%,
-      rgba(59,130,246,.03) 0%, transparent 55%),
+    /* dot-grid texture */
+    radial-gradient(circle, rgba(255,255,255,0.035) 1px, transparent 1px),
+    /* ambient gradient mesh */
+    radial-gradient(ellipse 90% 40% at 50% -8%, rgba(6,214,192,.06) 0%, transparent 60%),
+    radial-gradient(ellipse 55% 35% at 92% 88%, rgba(59,130,246,.03) 0%, transparent 55%),
     var(--bg) !important;
+  background-size: 28px 28px, 100% 100%, 100% 100%, 100% 100% !important;
   font-family: var(--sans) !important;
   color: var(--txt) !important;
 }
@@ -168,8 +185,8 @@ h1 {
   font-size: 2.25rem !important;
   font-weight: 400 !important;
   color: var(--txt) !important;
-  letter-spacing: -.025em !important;
-  line-height: 1.15 !important;
+  letter-spacing: -.03em !important;
+  line-height: 1.12 !important;
   margin-bottom: .1rem !important;
 }
 h2 {
@@ -177,29 +194,32 @@ h2 {
   font-size: 1.55rem !important;
   font-weight: 400 !important;
   color: var(--txt) !important;
-  letter-spacing: -.015em !important;
+  letter-spacing: -.02em !important;
+  line-height: 1.2 !important;
 }
 h3 {
   font-family: var(--sans) !important;
-  font-size: .78rem !important;
+  font-size: .72rem !important;
   font-weight: 700 !important;
   color: var(--txt-3) !important;
   text-transform: uppercase !important;
-  letter-spacing: .1em !important;
+  letter-spacing: .13em !important;
 }
-p, li { color: var(--txt-2) !important; font-size: .88rem !important; line-height: 1.7 !important }
+p, li { color: var(--txt-2) !important; font-size: .88rem !important; line-height: 1.72 !important }
 strong { color: var(--txt) !important }
 code {
   font-family: var(--mono) !important;
   background: var(--bg-raised) !important;
   color: var(--accent) !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-  font-size: .83em !important;
+  padding: 2px 7px !important;
+  border-radius: 5px !important;
+  font-size: .82em !important;
+  border: 1px solid var(--border-mid) !important;
 }
 a { color: var(--accent) !important; text-decoration: none !important }
+a:hover { text-decoration: underline !important; text-underline-offset: 3px !important }
 [data-testid="stCaptionContainer"] p,
-.stCaption { color: var(--txt-3) !important; font-size: .75rem !important }
+.stCaption { color: var(--txt-3) !important; font-size: .74rem !important }
 hr { border: none !important; border-top: 1px solid var(--border) !important; margin: 1.5rem 0 !important }
 
 /* ═══════════════════════════════════════════════════
@@ -213,30 +233,34 @@ hr { border: none !important; border-top: 1px solid var(--border) !important; ma
   font-family: var(--sans) !important;
   font-size: .84rem !important;
   font-weight: 500 !important;
-  letter-spacing: .015em !important;
+  letter-spacing: .01em !important;
   padding: .45rem 1.1rem !important;
-  transition: all .18s ease !important;
-  box-shadow: none !important;
+  transition: all .15s ease !important;
+  /* Stripe-style: inset highlight + soft drop shadow */
+  box-shadow: var(--sh-xs), inset 0 1px 0 rgba(255,255,255,0.05) !important;
 }
 .stButton > button:hover {
   background: var(--bg-card) !important;
   color: var(--txt) !important;
   border-color: var(--border-hi) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,.3) !important;
+  box-shadow: var(--sh), inset 0 1px 0 rgba(255,255,255,0.07) !important;
 }
 .stButton > button[kind="primary"] {
-  background: linear-gradient(135deg, var(--accent) 0%, #04B8A8 100%) !important;
-  color: #070B18 !important;
+  background: linear-gradient(145deg, #08EDD5 0%, var(--accent) 50%, #04B0A2 100%) !important;
+  color: #060C18 !important;
   border: none !important;
   font-weight: 700 !important;
-  box-shadow: 0 4px 18px var(--accent-glow) !important;
+  /* Layered: drop shadow + glow */
+  box-shadow: var(--sh-sm), 0 0 0 1px rgba(6,214,192,0.3), 0 4px 14px var(--accent-glow),
+              inset 0 1px 0 rgba(255,255,255,0.18) !important;
 }
 .stButton > button[kind="primary"]:hover {
-  background: linear-gradient(135deg, #0AEAD2 0%, var(--accent) 100%) !important;
-  color: #070B18 !important;
-  transform: translateY(-2px) !important;
-  box-shadow: 0 6px 26px var(--accent-glow) !important;
+  background: linear-gradient(145deg, #12FFE8 0%, #08EDD5 50%, var(--accent) 100%) !important;
+  color: #060C18 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--sh), 0 0 0 1px rgba(6,214,192,0.35), 0 6px 22px var(--accent-glow),
+              inset 0 1px 0 rgba(255,255,255,0.22) !important;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -268,7 +292,7 @@ hr { border: none !important; border-top: 1px solid var(--border) !important; ma
 .stTextInput > div > div:focus-within,
 .stTextArea > div > div:focus-within {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px var(--accent-10) !important;
+  box-shadow: var(--ring-focus) !important;
 }
 .stTextInput input, .stTextArea textarea {
   background: transparent !important;
@@ -288,7 +312,7 @@ hr { border: none !important; border-top: 1px solid var(--border) !important; ma
 }
 .stSelectbox > div > div:focus-within {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px var(--accent-10) !important;
+  box-shadow: var(--ring-focus) !important;
 }
 
 /* number input */
@@ -312,7 +336,7 @@ hr { border: none !important; border-top: 1px solid var(--border) !important; ma
 }
 [data-testid="stChatInput"]:focus-within {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px var(--accent-10), 0 0 20px var(--accent-glow) !important;
+  box-shadow: var(--ring-focus), 0 0 16px var(--accent-glow) !important;
 }
 [data-testid="stChatInput"] textarea {
   background: transparent !important;
@@ -332,16 +356,17 @@ hr { border: none !important; border-top: 1px solid var(--border) !important; ma
   position: relative !important;
   overflow: hidden !important;
   transition: border-color .2s, box-shadow .2s !important;
+  box-shadow: var(--sh-xs) !important;
 }
 [data-testid="metric-container"]::before {
   content:'';
   position:absolute; top:0; left:0;
   width:3px; height:100%;
-  background: var(--accent);
+  background: linear-gradient(180deg, var(--accent), transparent);
 }
 [data-testid="metric-container"]:hover {
-  border-color: var(--border-hi) !important;
-  box-shadow: var(--sh) !important;
+  border-color: rgba(6,214,192,0.22) !important;
+  box-shadow: var(--ring-card-hover), var(--sh) !important;
 }
 [data-testid="stMetricLabel"] {
   color: var(--txt-3) !important;
@@ -456,11 +481,12 @@ hr { border: none !important; border-top: 1px solid var(--border) !important; ma
   background: var(--bg-card) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--r2) !important;
+  box-shadow: var(--sh-xs) !important;
   transition: border-color .2s, box-shadow .2s !important;
 }
 [data-testid="stVerticalBlockBorderWrapper"]:hover {
-  border-color: var(--border-hi) !important;
-  box-shadow: 0 0 24px rgba(6,214,192,.06) !important;
+  border-color: rgba(6,214,192,0.2) !important;
+  box-shadow: var(--ring-card-hover), var(--sh) !important;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -563,9 +589,10 @@ tbody tr:hover td { background: var(--bg-raised) !important }
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--r2); padding: 1.1rem 1.4rem;
   position: relative; overflow: hidden;
+  box-shadow: var(--sh-xs);
   transition: border-color .2s, box-shadow .2s;
 }
-.snec-stat:hover { border-color: var(--border-hi); box-shadow: var(--sh) }
+.snec-stat:hover { border-color: rgba(6,214,192,0.2); box-shadow: var(--ring-card-hover), var(--sh) }
 .snec-stat::before { content:''; position:absolute; top:0; left:0; width:3px; height:100% }
 .snec-stat.c-teal::before  { background: var(--accent) }
 .snec-stat.c-gold::before  { background: var(--gold) }
@@ -598,14 +625,14 @@ tbody tr:hover td { background: var(--bg-raised) !important }
 /* — Flashcard ————————————————————— */
 .snec-card {
   background: var(--bg-card);
-  border: 1px solid var(--border-hi);
+  border: 1px solid var(--border-mid);
   border-radius: var(--r3);
   padding: 2.5rem 2rem;
   min-height: 200px;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   text-align: center; position: relative; overflow: hidden;
-  box-shadow: var(--sh);
+  box-shadow: var(--sh), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .snec-card::before {
   content:''; position:absolute; inset:-1px; border-radius: var(--r3);
@@ -678,11 +705,25 @@ tbody tr:hover td { background: var(--bg-raised) !important }
   background:var(--bg-card); border:1px solid var(--border);
   border-radius:var(--r2); padding:1rem 1.25rem; text-align:center;
   position:relative; overflow:hidden;
+  box-shadow: var(--sh-xs);
+  transition: border-color .2s, box-shadow .2s;
 }
+.snec-domain:hover { border-color: rgba(6,214,192,0.18); box-shadow: var(--ring-card-hover) }
 .snec-domain-lbl { font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--txt-3); margin-bottom:.45rem }
 .snec-domain-val { font-family:var(--serif); font-size:2rem; line-height:1; margin-bottom:.5rem }
 .snec-domain-track { background:var(--bg-raised); border-radius:99px; height:4px; overflow:hidden }
 .snec-domain-fill  { height:100%; border-radius:99px }
+
+/* — Case hint bubble ————————————— */
+.snec-hint {
+  background: rgba(245,158,11,.07);
+  border: 1px solid rgba(245,158,11,.2);
+  border-radius: var(--r);
+  padding: .6rem .9rem;
+  font-size: .82rem; color: #FCD34D; line-height: 1.5;
+  margin-bottom: .5rem;
+  box-shadow: var(--sh-xs);
+}
 
 /* — Nav section divider —————————— */
 .snec-nav-sep {
