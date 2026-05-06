@@ -80,19 +80,26 @@ def generate_cards(
     messages: list[dict],
     system_prompt: str = "",
 ) -> int:
+    """Generate flash-cards and save to Sheets. Returns count saved."""
+    return len(generate_and_return_cards(student_id, session_id, messages))
+
+
+def generate_and_return_cards(
+    student_id: str,
+    session_id: str,
+    messages: list[dict],
+) -> list[dict]:
     """
-    Generate flash-cards from a completed session and write them to snec_flashcards.
+    Generate flash-cards from a completed session, save to snec_flashcards, and return them.
 
     Args:
-        student_id:    Student UUID.
-        session_id:    Session UUID (links cards back to the session).
-        messages:      Full conversation history from the session.
-        system_prompt: Optional — included for context but not required.
+        student_id:  Student UUID.
+        session_id:  Session UUID.
+        messages:    Full conversation history from the session.
 
     Returns:
-        Number of cards successfully saved.
+        List of saved card dicts with keys: card_id, front, back, topic_tag.
     """
-    # Truncate to last 20 messages — recent content contains all the extractable facts
     transcript = _build_transcript(messages[-20:])
 
     response = ask(
@@ -107,9 +114,9 @@ def generate_cards(
     if not cards:
         audit_log("cards_parse_failed", student_id=student_id, feature="flashcards",
                   detail=f"session_id={session_id} response_len={len(response)}")
-        return 0
+        return []
 
-    saved = 0
+    saved = []
     for card in cards:
         card_id = str(uuid.uuid4())
         append_row("snec_flashcards", {
@@ -125,10 +132,10 @@ def generate_cards(
             "last_reviewed": "",
             "created_from_session_id": session_id,
         })
-        saved += 1
+        saved.append({"card_id": card_id, "front": card["front"], "back": card["back"], "topic_tag": card["topic_tag"]})
 
     audit_log("cards_generated", student_id=student_id, feature="flashcards",
-              detail=f"session_id={session_id} count={saved}")
+              detail=f"session_id={session_id} count={len(saved)}")
     return saved
 
 
