@@ -389,9 +389,6 @@ def render() -> None:
         if st.button("📋 Submit for Evaluation", type="primary"):
             with st.spinner("Evaluating your performance..."):
                 try:
-                    from tools.cases.evaluate_response import evaluate_case
-                    from tools.cases.log_result import log_case_result
-                    from tools.flashcards.generate_cards import generate_cards
                     result = evaluate_case(case, st.session_state.case_conversation, sid)
                     log_case_result(sid, case, result)
                     generate_cards(sid, case["case_id"], st.session_state.case_conversation)
