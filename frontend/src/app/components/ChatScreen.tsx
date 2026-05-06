@@ -6,33 +6,6 @@ import { XPBar } from "./XPBar";
 import { StreakDisplay } from "./StreakDisplay";
 import { AchievementManager } from "./AchievementToast";
 import { getUserProgress, addXP, updateStreak, checkAndUnlockAchievements, XP_REWARDS } from "../utils/gamification";
-
-async function apiChat(
-  studentId: string,
-  messages: { role: string; content: string }[]
-): Promise<{ explanation: string; mechanism: string; clinicalPearl: string; checkUnderstanding: string }> {
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ student_id: studentId, messages }),
-  });
-  if (!res.ok) throw new Error("Chat request failed");
-  return res.json();
-}
-
-async function apiEndSession(
-  studentId: string,
-  messages: { role: string; content: string }[],
-  topic: string
-): Promise<{ session_id: string; cards: unknown[] }> {
-  const res = await fetch("/api/end-session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ student_id: studentId, messages, topic }),
-  });
-  if (!res.ok) throw new Error("End session failed");
-  return res.json();
-}
 import {
   Send,
   BookOpen,
@@ -58,6 +31,7 @@ interface AIMessage {
     clinicalPearl: string;
     checkUnderstanding: string;
   };
+  raw?: string;
 }
 
 interface UserMessage {
@@ -207,7 +181,6 @@ export function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [isEndingSession, setIsEndingSession] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -215,6 +188,12 @@ export function ChatScreen() {
   const [newAchievements, setNewAchievements] = useState<string[]>([]);
   const [showXPGain, setShowXPGain] = useState(false);
   const [xpGained, setXpGained] = useState(0);
+
+  useEffect(() => {
+    const streak = updateStreak();
+    const progress = getUserProgress();
+    setUserProgress(progress);
+  }, []);
 
   const userData = (() => {
     try {
@@ -224,14 +203,8 @@ export function ChatScreen() {
     }
   })();
 
-  const studentId: string = userData.student_id || "anonymous";
-  const studentName: string = userData.fullName || "Student";
+  const studentName = userData.fullName || "Student";
   const firstName = studentName.split(" ")[0];
-
-  useEffect(() => {
-    updateStreak();
-    setUserProgress(getUserProgress());
-  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -241,22 +214,15 @@ export function ChatScreen() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const buildApiHistory = (uiMessages: Message[]) =>
-    uiMessages.flatMap((msg): { role: string; content: string }[] => {
-      if (msg.type === "user") return [{ role: "user", content: msg.text }];
-      const s = msg.sections;
-      return [{
-        role: "assistant",
-        content: `**Explanation:** ${s.explanation}\n\n**Mechanism:** ${s.mechanism}\n\n**Clinical Pearl:** ${s.clinicalPearl}\n\n**Check Your Understanding:** ${s.checkUnderstanding}`,
-      }];
-    });
-
   const sendMessage = async () => {
     if (!input.trim() || isTyping) return;
+    const userMsg: UserMessage = {
+      type: "user",
+      id: Date.now().toString(),
+      text: input.trim(),
+    };
 
-    const userMsg: UserMessage = { type: "user", id: Date.now().toString(), text: input.trim() };
-    const nextMessages = [...messages, userMsg];
-    setMessages(nextMessages);
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsTyping(true);
 
@@ -266,42 +232,51 @@ export function ChatScreen() {
     setShowXPGain(true);
     setTimeout(() => setShowXPGain(false), 2000);
 
-    const unlocked = checkAndUnlockAchievements();
-    if (unlocked.length > 0) setNewAchievements((prev) => [...prev, ...unlocked]);
+    const unlockedAchievements = checkAndUnlockAchievements();
+    if (unlockedAchievements.length > 0) {
+      setNewAchievements((prev) => [...prev, ...unlockedAchievements]);
+    }
+
+    const studentId = sessionStorage.getItem("eyeq_student_id") || "anonymous";
+
+    // Build conversation history for the API
+    const apiMessages = messages
+      .concat(userMsg)
+      .map((m) => {
+        if (m.type === "user") return { role: "user", content: m.text };
+        return { role: "assistant", content: m.raw || m.sections.explanation };
+      });
 
     try {
-      const sections = await apiChat(studentId, buildApiHistory(nextMessages));
-      const aiMsg: AIMessage = { type: "ai", id: (Date.now() + 1).toString(), sections };
+      const res = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: studentId, messages: apiMessages }),
+      });
+      const data = await res.json();
+      const aiMsg: AIMessage = {
+        type: "ai",
+        id: (Date.now() + 1).toString(),
+        sections: {
+          explanation: data.explanation,
+          mechanism: data.mechanism,
+          clinicalPearl: data.clinicalPearl,
+          checkUnderstanding: data.checkUnderstanding,
+        },
+        raw: data.raw,
+      };
       setMessages((prev) => [...prev, aiMsg]);
     } catch {
       const aiMsg: AIMessage = {
         type: "ai",
         id: (Date.now() + 1).toString(),
-        sections: {
-          explanation: "Could not reach the backend. Make sure the API server is running.",
-          mechanism: "",
-          clinicalPearl: "",
-          checkUnderstanding: "",
-        },
+        sections: AI_RESPONSES.default,
+        raw: undefined,
       };
       setMessages((prev) => [...prev, aiMsg]);
     } finally {
       setIsTyping(false);
     }
-  };
-
-  const endSession = async (destination: "/summary" | "/flashcards") => {
-    if (isEndingSession) return;
-    setIsEndingSession(true);
-    const topic = SAMPLE_TOPIC;
-    const apiMsgs = buildApiHistory(messages);
-    try {
-      const result = await apiEndSession(studentId, apiMsgs, topic);
-      sessionStorage.setItem("eyeq_session", JSON.stringify({ ...result, topic, messageCount: messages.length }));
-    } catch {
-      sessionStorage.setItem("eyeq_session", JSON.stringify({ session_id: "unknown", cards: [], topic, messageCount: messages.length }));
-    }
-    navigate(destination);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -432,21 +407,43 @@ export function ChatScreen() {
         {/* Bottom Actions */}
         <div className="px-5 py-4 border-t border-white/10 space-y-2">
           <button
-            onClick={() => endSession("/flashcards")}
-            disabled={isEndingSession}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-[#14B8A6]/15 text-[#14B8A6] hover:bg-[#14B8A6]/25 transition-all disabled:opacity-50"
+            onClick={() => navigate("/flashcards")}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-[#14B8A6]/15 text-[#14B8A6] hover:bg-[#14B8A6]/25 transition-all"
           >
             <Layers size={14} />
             <span style={{ fontSize: "0.8125rem", fontWeight: 500 }}>Flashcard Review</span>
             <ArrowRight size={12} className="ml-auto" />
           </button>
           <button
-            onClick={() => endSession("/summary")}
-            disabled={isEndingSession}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all disabled:opacity-50"
+            onClick={async () => {
+              const studentId = sessionStorage.getItem("eyeq_student_id") || "anonymous";
+              const apiMessages = messages.map((m) => {
+                if (m.type === "user") return { role: "user", content: m.text };
+                return { role: "assistant", content: m.raw || m.sections.explanation };
+              });
+              try {
+                const res = await fetch("http://localhost:8000/api/end-session", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    student_id: studentId,
+                    messages: apiMessages,
+                    topic: SAMPLE_TOPIC,
+                    token_count: 0,
+                  }),
+                });
+                const data = await res.json();
+                sessionStorage.setItem("eyeq_session_cards", JSON.stringify(data.cards));
+                sessionStorage.setItem("eyeq_session_id", data.session_id);
+              } catch {
+                // navigate even if the API fails
+              }
+              navigate("/flashcards");
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all"
           >
             <RotateCcw size={14} />
-            <span style={{ fontSize: "0.8125rem" }}>{isEndingSession ? "Ending…" : "End Session"}</span>
+            <span style={{ fontSize: "0.8125rem" }}>End Session</span>
           </button>
         </div>
       </motion.div>

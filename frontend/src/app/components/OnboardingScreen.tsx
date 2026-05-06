@@ -5,17 +5,6 @@ import { HolographicEyeLogo } from "./HolographicEyeLogo";
 import { ParticleBackground } from "./ParticleBackground";
 import { Eye, Sparkles } from "lucide-react";
 
-async function apiOnboard(fullName: string, email: string): Promise<string> {
-  const res = await fetch("/api/onboard", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ full_name: fullName, email }),
-  });
-  if (!res.ok) throw new Error("Onboarding failed");
-  const data = await res.json();
-  return data.student_id;
-}
-
 const PDPA_TEXT = `PERSONAL DATA PROTECTION ACT (PDPA) CONSENT
 
 1. COLLECTION OF PERSONAL DATA
@@ -66,14 +55,22 @@ export function OnboardingScreen() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate() || submitting) return;
+    if (!validate()) return;
+
     setSubmitting(true);
     try {
-      const student_id = await apiOnboard(fullName.trim(), email.trim());
-      sessionStorage.setItem("eyeq_user", JSON.stringify({ fullName, email, student_id }));
-      navigate("/chat");
-    } catch {
-      setErrors((prev) => ({ ...prev, api: "Could not reach server. Is the backend running?" }));
+      const res = await fetch("http://localhost:8000/api/onboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: fullName.trim(), email: email.trim().toLowerCase() }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      sessionStorage.setItem("eyeq_user", JSON.stringify({ fullName, email }));
+      sessionStorage.setItem("eyeq_student_id", data.student_id);
+      navigate("/dashboard");
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, api: "Could not connect to server. Is the backend running?" }));
     } finally {
       setSubmitting(false);
     }
@@ -271,9 +268,9 @@ export function OnboardingScreen() {
               )}
             </div>
 
-            {/* API error */}
+            {/* API Error */}
             {errors.api && (
-              <p className="text-red-500 text-center mb-3" style={{ fontSize: "0.8rem" }}>
+              <p className="text-red-500 mb-4 text-center" style={{ fontSize: "0.8rem" }}>
                 {errors.api}
               </p>
             )}
@@ -284,8 +281,8 @@ export function OnboardingScreen() {
               disabled={submitting}
               className="w-full py-4 rounded-xl bg-gradient-to-r from-[#0D1B2A] via-[#0D2B3A] to-[#0D1B2A] text-white transition-all hover:shadow-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#0D1B2A]/40 relative overflow-hidden group disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ fontWeight: 600, fontSize: "1rem", letterSpacing: "0.01em" }}
-              whileHover={!submitting ? { scale: 1.02, y: -2 } : undefined}
-              whileTap={!submitting ? { scale: 0.98 } : undefined}
+              whileHover={submitting ? undefined : { scale: 1.02, y: -2 }}
+              whileTap={submitting ? undefined : { scale: 0.98 }}
             >
               <motion.div
                 className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
@@ -294,7 +291,7 @@ export function OnboardingScreen() {
                 transition={{ duration: 0.6, ease: "easeInOut" }}
               />
               <Sparkles size={18} className="text-[#14B8A6]" />
-              <span className="relative z-10">{submitting ? "Starting…" : "Start Learning"}</span>
+              <span className="relative z-10">{submitting ? "Connecting..." : "Start Learning"}</span>
               <Eye size={18} className="text-[#14B8A6]" />
             </motion.button>
 

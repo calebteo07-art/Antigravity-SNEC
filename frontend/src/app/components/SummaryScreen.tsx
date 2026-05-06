@@ -9,7 +9,6 @@ import { ParticleBackground } from "./ParticleBackground";
 import { getUserProgress, addXP, checkAndUnlockAchievements, XP_REWARDS, ACHIEVEMENTS } from "../utils/gamification";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import {
-  Clock,
   BookOpen,
   Layers,
   CheckCircle2,
@@ -87,39 +86,6 @@ const PREVIEW_CARDS = [
   },
 ];
 
-const STATS = [
-  {
-    icon: Clock,
-    label: "Session Duration",
-    value: SESSION_DATA.duration,
-    iconColor: "text-[#14B8A6]",
-    bgColor: "bg-[#14B8A6]/10",
-  },
-  {
-    icon: BookOpen,
-    label: "Topic Covered",
-    value: SESSION_DATA.topic,
-    subvalue: `${SESSION_DATA.subtopics.length} subtopics`,
-    iconColor: "text-indigo-500",
-    bgColor: "bg-indigo-50",
-  },
-  {
-    icon: Layers,
-    label: "Flashcards Generated",
-    value: `${SESSION_DATA.flashcardsGenerated}`,
-    subvalue: "ready for review",
-    iconColor: "text-amber-500",
-    bgColor: "bg-amber-50",
-  },
-  {
-    icon: HelpCircle,
-    label: "Questions Explored",
-    value: `${SESSION_DATA.questionsAnswered}`,
-    subvalue: "in-depth exchanges",
-    iconColor: "text-emerald-500",
-    bgColor: "bg-emerald-50",
-  },
-];
 
 export function SummaryScreen() {
   const navigate = useNavigate();
@@ -365,7 +331,7 @@ export function SummaryScreen() {
               </h3>
             </div>
             <div className="flex flex-wrap gap-2">
-              {SESSION_DATA.subtopics.map((topic, idx) => (
+              {["Pathophysiology", "Clinical Staging", "Management", "Investigations"].map((topic, idx) => (
                 <motion.div
                   key={idx}
                   className="flex items-center gap-1.5 bg-[#14B8A6]/20 text-[#14B8A6] border border-[#14B8A6]/40 rounded-full px-3 py-1.5 backdrop-blur-sm"
