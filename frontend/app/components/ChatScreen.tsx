@@ -31,6 +31,7 @@ interface AIMessage {
     clinicalPearl: string;
     checkUnderstanding: string;
   };
+  raw?: string;
 }
 
 interface UserMessage {
@@ -213,18 +214,19 @@ export function ChatScreen() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!input.trim() || isTyping) return;
     const userMsg: UserMessage = {
       type: "user",
       id: Date.now().toString(),
       text: input.trim(),
     };
+
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsTyping(true);
 
-    const result = addXP(XP_REWARDS.chatMessage);
+    addXP(XP_REWARDS.chatMessage);
     setUserProgress(getUserProgress());
     setXpGained(XP_REWARDS.chatMessage);
     setShowXPGain(true);
@@ -235,15 +237,46 @@ export function ChatScreen() {
       setNewAchievements((prev) => [...prev, ...unlockedAchievements]);
     }
 
-    setTimeout(() => {
+    const studentId = sessionStorage.getItem("eyeq_student_id") || "anonymous";
+
+    // Build conversation history for the API
+    const apiMessages = messages
+      .concat(userMsg)
+      .map((m) => {
+        if (m.type === "user") return { role: "user", content: m.text };
+        return { role: "assistant", content: m.raw || m.sections.explanation };
+      });
+
+    try {
+      const res = await fetch("http://localhost:8000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: studentId, messages: apiMessages }),
+      });
+      const data = await res.json();
+      const aiMsg: AIMessage = {
+        type: "ai",
+        id: (Date.now() + 1).toString(),
+        sections: {
+          explanation: data.explanation,
+          mechanism: data.mechanism,
+          clinicalPearl: data.clinicalPearl,
+          checkUnderstanding: data.checkUnderstanding,
+        },
+        raw: data.raw,
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch {
       const aiMsg: AIMessage = {
         type: "ai",
         id: (Date.now() + 1).toString(),
         sections: AI_RESPONSES.default,
+        raw: undefined,
       };
       setMessages((prev) => [...prev, aiMsg]);
+    } finally {
       setIsTyping(false);
-    }, 1800);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -382,7 +415,31 @@ export function ChatScreen() {
             <ArrowRight size={12} className="ml-auto" />
           </button>
           <button
-            onClick={() => navigate("/summary")}
+            onClick={async () => {
+              const studentId = sessionStorage.getItem("eyeq_student_id") || "anonymous";
+              const apiMessages = messages.map((m) => {
+                if (m.type === "user") return { role: "user", content: m.text };
+                return { role: "assistant", content: m.raw || m.sections.explanation };
+              });
+              try {
+                const res = await fetch("http://localhost:8000/api/end-session", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    student_id: studentId,
+                    messages: apiMessages,
+                    topic: SAMPLE_TOPIC,
+                    token_count: 0,
+                  }),
+                });
+                const data = await res.json();
+                sessionStorage.setItem("eyeq_session_cards", JSON.stringify(data.cards));
+                sessionStorage.setItem("eyeq_session_id", data.session_id);
+              } catch {
+                // navigate even if the API fails
+              }
+              navigate("/flashcards");
+            }}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all"
           >
             <RotateCcw size={14} />

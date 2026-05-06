@@ -40,7 +40,8 @@ export function OnboardingScreen() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [pdpaConsent, setPdpaConsent] = useState(false);
-  const [errors, setErrors] = useState<{ fullName?: string; email?: string; pdpa?: string }>({});
+  const [errors, setErrors] = useState<{ fullName?: string; email?: string; pdpa?: string; api?: string }>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const validate = () => {
     const newErrors: typeof errors = {};
@@ -52,12 +53,26 @@ export function OnboardingScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
-      // Store user info for later screens
+    if (!validate()) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("http://localhost:8000/api/onboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: fullName.trim(), email: email.trim().toLowerCase() }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
       sessionStorage.setItem("eyeq_user", JSON.stringify({ fullName, email }));
-      navigate("/chat");
+      sessionStorage.setItem("eyeq_student_id", data.student_id);
+      navigate("/dashboard");
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, api: "Could not connect to server. Is the backend running?" }));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -253,13 +268,21 @@ export function OnboardingScreen() {
               )}
             </div>
 
+            {/* API Error */}
+            {errors.api && (
+              <p className="text-red-500 mb-4 text-center" style={{ fontSize: "0.8rem" }}>
+                {errors.api}
+              </p>
+            )}
+
             {/* CTA Button */}
             <motion.button
               type="submit"
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#0D1B2A] via-[#0D2B3A] to-[#0D1B2A] text-white transition-all hover:shadow-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#0D1B2A]/40 relative overflow-hidden group"
+              disabled={submitting}
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#0D1B2A] via-[#0D2B3A] to-[#0D1B2A] text-white transition-all hover:shadow-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#0D1B2A]/40 relative overflow-hidden group disabled:opacity-60 disabled:cursor-not-allowed"
               style={{ fontWeight: 600, fontSize: "1rem", letterSpacing: "0.01em" }}
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={submitting ? undefined : { scale: 1.02, y: -2 }}
+              whileTap={submitting ? undefined : { scale: 0.98 }}
             >
               <motion.div
                 className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
@@ -268,7 +291,7 @@ export function OnboardingScreen() {
                 transition={{ duration: 0.6, ease: "easeInOut" }}
               />
               <Sparkles size={18} className="text-[#14B8A6]" />
-              <span className="relative z-10">Start Learning</span>
+              <span className="relative z-10">{submitting ? "Connecting..." : "Start Learning"}</span>
               <Eye size={18} className="text-[#14B8A6]" />
             </motion.button>
 

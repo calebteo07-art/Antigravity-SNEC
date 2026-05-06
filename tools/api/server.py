@@ -10,6 +10,7 @@ Run:
     uvicorn tools.api.server:app --reload --port 8000
 """
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -26,6 +27,21 @@ from tools.shared.claude_client import ask, MOCK_MODE, MODEL
 from tools.shared.identity import get_or_create_student, has_consented, record_consent
 from tools.chatbot.log_session import log_session
 from tools.flashcards.generate_cards import generate_and_return_cards
+from tools.cases.load_case import load_case, list_available_cases
+from tools.cases.evaluate_response import evaluate_case
+
+PATIENT_SYSTEM = """You are playing the role of a patient in a clinical case simulation for ophthalmology students.
+
+IMPORTANT RULES:
+- Answer ONLY what the student directly asks. Do not volunteer extra information.
+- Stay in character as the patient — use lay language, not medical terminology.
+- If the student asks for examination findings or investigation results, provide them as an examiner would.
+- If the student asks to examine you, describe findings from the case.
+- When the student says they are ready to give a diagnosis or management plan, acknowledge it.
+- Do NOT reveal the diagnosis or correct answers — wait for the student to conclude.
+
+Case details for your reference (do not reveal unless asked):
+{case_json}"""
 
 KB_PATH = PROJECT_ROOT / "workflows" / "ophthalmology_kb.md"
 _KB_TEXT: Optional[str] = None
@@ -188,3 +204,132 @@ def end_session(body: EndSessionRequest):
 @app.get("/api/status")
 def status():
     return {"status": "ok", "mock_mode": MOCK_MODE}
+
+
+# ── Case simulation models ─────────────────────────────────────────────────
+
+class CasePatientInfo(BaseModel):
+    name: str
+    age: int
+    presenting_complaint: str
+
+class CaseInfo(BaseModel):
+    case_id: str
+    title: str
+    difficulty: str
+    topic: str
+    estimated_minutes: int
+    patient: CasePatientInfo
+
+class CasesResponse(BaseModel):
+    cases: list[CaseInfo]
+
+class CaseChatRequest(BaseModel):
+    student_id: str
+    messages: list[ChatMessage]
+
+class CaseChatResponse(BaseModel):
+    response: str
+
+class CaseSubmitRequest(BaseModel):
+    student_id: str
+    messages: list[ChatMessage]
+    diagnosis: str
+    management_plan: str
+
+class DomainScore(BaseModel):
+    history_score: int
+    investigations_score: int
+    diagnosis_score: int
+    management_score: int
+    history_feedback: str
+    investigations_feedback: str
+    diagnosis_feedback: str
+    management_feedback: str
+    total_score: int
+    overall_feedback: str
+
+class CaseSubmitResponse(BaseModel):
+    result: DomainScore
+    cards: list[Flashcard]
+    mock_mode: bool
+
+
+# ── Case endpoints ─────────────────────────────────────────────────────────
+
+@app.get("/api/cases", response_model=CasesResponse)
+def get_cases():
+    cases = []
+    for case_id in list_available_cases():
+        try:
+            c = load_case(case_id)
+            cases.append(CaseInfo(
+                case_id=c["case_id"],
+                title=c["title"],
+                difficulty=c["difficulty"],
+                topic=c["topic"],
+                estimated_minutes=c["estimated_minutes"],
+                patient=CasePatientInfo(
+                    name=c["patient"]["name"],
+                    age=c["patient"]["age"],
+                    presenting_complaint=c["patient"]["presenting_complaint"],
+                ),
+            ))
+        except Exception:
+            pass
+    return CasesResponse(cases=cases)
+
+
+@app.post("/api/cases/{case_id}/chat", response_model=CaseChatResponse)
+def case_chat(case_id: str, body: CaseChatRequest):
+    try:
+        case = load_case(case_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found")
+
+    patient_prompt = PATIENT_SYSTEM.format(case_json=json.dumps(case, indent=2))
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    response = ask(
+        system_prompt=patient_prompt,
+        messages=messages,
+        max_tokens=512,
+        feature="case",
+    )
+    return CaseChatResponse(response=response)
+
+
+@app.post("/api/cases/{case_id}/submit", response_model=CaseSubmitResponse)
+def case_submit(case_id: str, body: CaseSubmitRequest):
+    try:
+        case = load_case(case_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found")
+
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+    # Append the student's final answer as a user message so the evaluator sees it
+    messages.append({
+        "role": "user",
+        "content": f"Diagnosis: {body.diagnosis}\nManagement Plan: {body.management_plan}",
+    })
+
+    raw_result = evaluate_case(case, messages, body.student_id)
+
+    session_id = log_session(
+        student_id=body.student_id,
+        topic=f"Case: {case['title']}",
+        messages=messages,
+        token_count=0,
+        model="mock" if MOCK_MODE else MODEL,
+    )
+    cards = generate_and_return_cards(
+        student_id=body.student_id,
+        session_id=session_id,
+        messages=messages,
+    )
+
+    return CaseSubmitResponse(
+        result=DomainScore(**{k: raw_result[k] for k in DomainScore.model_fields}),
+        cards=[Flashcard(**c) for c in cards],
+        mock_mode=MOCK_MODE,
+    )
