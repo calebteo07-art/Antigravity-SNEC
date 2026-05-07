@@ -25,7 +25,7 @@ from tools.flashcards.generate_cards import generate_cards
 
 EXIT_COMMANDS = {"exit", "quit", "done", "q", "submit"}
 
-PATIENT_SYSTEM = """You are playing the role of a patient in a clinical case simulation for ophthalmology students.
+PATIENT_SYSTEM = """You are playing the role of a patient in a clinical case simulation for ophthalmic professionals.
 
 IMPORTANT RULES:
 - Answer ONLY what the student directly asks. Do not volunteer extra information.

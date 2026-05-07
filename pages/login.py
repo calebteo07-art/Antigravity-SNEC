@@ -12,8 +12,8 @@ def render() -> None:
           <div class="snec-login-eyeball">👁️</div>
           <div class="snec-login-title">Learn to see<br>what others <em>miss.</em></div>
           <div class="snec-login-desc">
-            An AI-powered ophthalmology training platform for medical students
-            and junior doctors at the Singapore National Eye Centre.
+            An AI-powered ophthalmology training platform for ophthalmic professionals
+            at the Singapore National Eye Centre.
           </div>
           <div class="snec-feature-grid">
             <div class="snec-feature-item">

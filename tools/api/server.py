@@ -30,7 +30,7 @@ from tools.flashcards.generate_cards import generate_and_return_cards
 from tools.cases.load_case import load_case, list_available_cases
 from tools.cases.evaluate_response import evaluate_case
 
-PATIENT_SYSTEM = """You are playing the role of a patient in a clinical case simulation for ophthalmology students.
+PATIENT_SYSTEM = """You are playing the role of a patient in a clinical case simulation for ophthalmic professionals.
 
 IMPORTANT RULES:
 - Answer ONLY what the student directly asks. Do not volunteer extra information.
