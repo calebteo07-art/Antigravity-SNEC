@@ -21,14 +21,16 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
-MODEL       = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-MODEL_SMALL = os.getenv("GEMINI_MODEL_SMALL", "gemini-2.0-flash-lite")  # lightweight model for flashcards, hints
+MODEL       = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL_SMALL = os.getenv("GEMINI_MODEL_SMALL", "gemini-2.5-flash-lite")  # lightweight model for flashcards, hints
 API_KEY     = os.getenv("GEMINI_API_KEY", "").strip()
 MOCK_MODE   = not API_KEY
 
+_client = None
+
 if not MOCK_MODE:
-    import google.generativeai as genai
-    genai.configure(api_key=API_KEY)
+    from google import genai as _genai
+    _client = _genai.Client(api_key=API_KEY)
 
 _MOCK_RESPONSES: dict[str, str] = {
     "chatbot": (
@@ -73,7 +75,7 @@ def _to_gemini_history(messages: list[dict]) -> tuple[list[dict], str]:
     """Convert Anthropic-format messages to Gemini chat history + last message text.
 
     Anthropic uses "assistant"; Gemini uses "model". All messages except the last
-    become history; the last user message is returned separately for send_message().
+    become history; the last user message is returned separately.
     """
     if not messages:
         return [], ""
@@ -107,16 +109,25 @@ def ask(
     if MOCK_MODE:
         return _mock_response(feature)
 
-    import google.generativeai as genai
+    from google import genai as _genai
 
     history, last_message = _to_gemini_history(messages)
-    gmodel = genai.GenerativeModel(
-        model_name=model or MODEL,
-        system_instruction=system_prompt,
-        generation_config={"max_output_tokens": max_tokens},
+
+    # Build full contents list in SDK format
+    contents = [
+        {"role": h["role"], "parts": [{"text": p} if isinstance(p, str) else p for p in h["parts"]]}
+        for h in history
+    ]
+    contents.append({"role": "user", "parts": [{"text": last_message}]})
+
+    response = _client.models.generate_content(
+        model=model or MODEL,
+        config=_genai.types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            max_output_tokens=max_tokens,
+        ),
+        contents=contents,
     )
-    chat = gmodel.start_chat(history=history)
-    response = chat.send_message(last_message)
     return response.text
 
 
@@ -146,20 +157,22 @@ def ask_with_image(
     if MOCK_MODE:
         return _mock_response(feature)
 
-    import google.generativeai as genai
     import PIL.Image
+    from google import genai as _genai
 
     last_user_text = next(
         (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
     )
     img = PIL.Image.open(Path(image_path))
 
-    gmodel = genai.GenerativeModel(
-        model_name=MODEL,
-        system_instruction=system_prompt,
-        generation_config={"max_output_tokens": max_tokens},
+    response = _client.models.generate_content(
+        model=MODEL,
+        config=_genai.types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            max_output_tokens=max_tokens,
+        ),
+        contents=[last_user_text, img],
     )
-    response = gmodel.generate_content([last_user_text, img])
     return response.text
 
 
@@ -172,7 +185,7 @@ if __name__ == "__main__":
     print("  Testing ask() - chatbot feature...")
     response = ask(
         system_prompt="You are an ophthalmology tutor.",
-        messages=[{"role": "user", "content": "Explain glaucoma."}],
+        messages=[{"role": "user", "content": "Explain glaucoma in one sentence."}],
         feature="chatbot",
     )
     assert len(response) > 10, "Response too short"
