@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Shared Claude API wrapper — all Anthropic API calls in the SNEC platform go through here.
+"""Shared AI client — all Gemini API calls in the SNEC platform go through here.
 
-Automatically runs in MOCK_MODE when ANTHROPIC_API_KEY is not set, returning
+Automatically runs in MOCK_MODE when GEMINI_API_KEY is not set, returning
 structured fake responses so all features can be built and tested without an API key.
-Switch to live mode by adding ANTHROPIC_API_KEY to .env.
+Switch to live mode by adding GEMINI_API_KEY to .env.
 
 Usage (from other tools):
     from tools.shared.claude_client import ask, ask_with_image
@@ -12,7 +12,6 @@ Self-test:
     python tools/shared/claude_client.py
 """
 
-import base64
 import os
 import sys
 from pathlib import Path
@@ -22,22 +21,15 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
-MODEL       = "claude-sonnet-4-6"
-MODEL_SMALL = "claude-haiku-4-5"   # for low-complexity tasks (flashcards, hints)
-API_KEY  = os.getenv("ANTHROPIC_API_KEY", "").strip()
-MOCK_MODE = not API_KEY
+MODEL       = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+MODEL_SMALL = os.getenv("GEMINI_MODEL_SMALL", "gemini-2.0-flash-lite")  # lightweight model for flashcards, hints
+API_KEY     = os.getenv("GEMINI_API_KEY", "").strip()
+MOCK_MODE   = not API_KEY
 
-# Module-level singleton — avoids re-instantiation and re-importing on every call
-_client = None
+if not MOCK_MODE:
+    import google.generativeai as genai
+    genai.configure(api_key=API_KEY)
 
-def _get_client():
-    global _client
-    if _client is None:
-        import anthropic
-        _client = anthropic.Anthropic(api_key=API_KEY)
-    return _client
-
-# Canned mock responses keyed by feature — realistic enough to test downstream logic
 _MOCK_RESPONSES: dict[str, str] = {
     "chatbot": (
         "**Explanation:** Glaucoma is a group of eye conditions that damage the optic nerve, "
@@ -69,12 +61,27 @@ _MOCK_RESPONSES: dict[str, str] = {
         "DIAGNOSIS: Appearances consistent with glaucomatous optic neuropathy. "
         "Recommend visual field testing and OCT RNFL analysis."
     ),
-    "default": "[MOCK] This is a mock response. Add ANTHROPIC_API_KEY to .env to use the real Claude API.",
+    "default": "[MOCK] This is a mock response. Add GEMINI_API_KEY to .env to use the real Gemini API.",
 }
 
 
 def _mock_response(feature: str = "default") -> str:
     return _MOCK_RESPONSES.get(feature, _MOCK_RESPONSES["default"])
+
+
+def _to_gemini_history(messages: list[dict]) -> tuple[list[dict], str]:
+    """Convert Anthropic-format messages to Gemini chat history + last message text.
+
+    Anthropic uses "assistant"; Gemini uses "model". All messages except the last
+    become history; the last user message is returned separately for send_message().
+    """
+    if not messages:
+        return [], ""
+    history = [
+        {"role": "model" if m["role"] == "assistant" else "user", "parts": [m["content"]]}
+        for m in messages[:-1]
+    ]
+    return history, messages[-1]["content"]
 
 
 def ask(
@@ -85,10 +92,10 @@ def ask(
     model: str | None = None,
 ) -> str:
     """
-    Send a conversation to Claude and return the response text.
+    Send a conversation to Gemini and return the response text.
 
     Args:
-        system_prompt: The system prompt (cached for cost efficiency in live mode).
+        system_prompt: The system prompt.
         messages:      Conversation history as list of {"role": "user"/"assistant", "content": str}.
         max_tokens:    Maximum tokens in the response.
         feature:       Feature name for mock routing: "chatbot", "flashcard", "case", "image".
@@ -100,19 +107,17 @@ def ask(
     if MOCK_MODE:
         return _mock_response(feature)
 
-    response = _get_client().messages.create(
-        model=model or MODEL,
-        max_tokens=max_tokens,
-        system=[
-            {
-                "type": "text",
-                "text": system_prompt,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=messages,
+    import google.generativeai as genai
+
+    history, last_message = _to_gemini_history(messages)
+    gmodel = genai.GenerativeModel(
+        model_name=model or MODEL,
+        system_instruction=system_prompt,
+        generation_config={"max_output_tokens": max_tokens},
     )
-    return response.content[0].text
+    chat = gmodel.start_chat(history=history)
+    response = chat.send_message(last_message)
+    return response.text
 
 
 def ask_with_image(
@@ -123,11 +128,14 @@ def ask_with_image(
     feature: str = "image",
 ) -> str:
     """
-    Send a conversation with an image attachment to Claude.
+    Send the last user message with an image attachment to Gemini.
+
+    Vision calls are single-turn: only the last user message in `messages` is
+    sent alongside the image. Prior conversation turns are ignored.
 
     Args:
         system_prompt: The system prompt.
-        messages:      Conversation history.
+        messages:      Conversation history; only the last user message is used.
         image_path:    Path to a local image file (JPG, PNG, GIF, WEBP).
         max_tokens:    Maximum tokens in the response.
         feature:       Feature name for mock routing.
@@ -138,49 +146,29 @@ def ask_with_image(
     if MOCK_MODE:
         return _mock_response(feature)
 
-    import anthropic
+    import google.generativeai as genai
+    import PIL.Image
 
-    image_path = Path(image_path)
-    suffix = image_path.suffix.lower()
-    media_type_map = {
-        ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-        ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp",
-    }
-    media_type = media_type_map.get(suffix, "image/jpeg")
-    image_data = base64.standard_b64encode(image_path.read_bytes()).decode("utf-8")
-
-    # Attach image to the last user message
-    enriched_messages = list(messages)
-    last_user = next(
-        (i for i in range(len(enriched_messages) - 1, -1, -1)
-         if enriched_messages[i]["role"] == "user"), None
+    last_user_text = next(
+        (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
     )
-    if last_user is not None:
-        original_content = enriched_messages[last_user]["content"]
-        enriched_messages[last_user] = {
-            "role": "user",
-            "content": [
-                {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_data}},
-                {"type": "text", "text": original_content},
-            ],
-        }
+    img = PIL.Image.open(Path(image_path))
 
-    response = _get_client().messages.create(
-        model=MODEL,
-        max_tokens=max_tokens,
-        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
-        messages=enriched_messages,
+    gmodel = genai.GenerativeModel(
+        model_name=MODEL,
+        system_instruction=system_prompt,
+        generation_config={"max_output_tokens": max_tokens},
     )
-    return response.content[0].text
+    response = gmodel.generate_content([last_user_text, img])
+    return response.text
 
 
 if __name__ == "__main__":
-    print("Testing claude_client.py...\n")
+    print("Testing claude_client.py (Gemini backend)...\n")
 
     mode = "MOCK" if MOCK_MODE else "LIVE"
     print(f"  Mode: {mode}")
 
-    # Test ask()
     print("  Testing ask() - chatbot feature...")
     response = ask(
         system_prompt="You are an ophthalmology tutor.",
@@ -190,7 +178,6 @@ if __name__ == "__main__":
     assert len(response) > 10, "Response too short"
     print(f"  [OK] Response ({len(response)} chars): {response[:80]}...")
 
-    # Test ask() - flashcard feature
     print("  Testing ask() - flashcard feature...")
     response = ask(
         system_prompt="You are a flash-card generator.",
@@ -202,9 +189,9 @@ if __name__ == "__main__":
 
     if MOCK_MODE:
         print("\n  Running in MOCK mode — no API calls made.")
-        print("  Add ANTHROPIC_API_KEY to .env to test live mode.")
+        print("  Add GEMINI_API_KEY to .env to test live mode.")
     else:
-        print("\n  Running in LIVE mode — real API calls used.")
+        print("\n  Running in LIVE mode — real Gemini API calls used.")
 
     print("\n  [PASS] claude_client.py working correctly.")
     sys.exit(0)
