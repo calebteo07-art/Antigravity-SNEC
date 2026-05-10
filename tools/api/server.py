@@ -32,6 +32,8 @@ from tools.cases.evaluate_response import evaluate_case
 from tools.profile.get_profile import get_profile
 from tools.profile.update_profile import update_profile
 from tools.profile.summarize_gaps import summarize_gaps
+from tools.supervisor.cohort_summary import cohort_summary as _cohort_summary
+from tools.supervisor.at_risk import get_at_risk as _get_at_risk
 
 PATIENT_SYSTEM = """You are playing the role of a patient in a clinical case simulation for ophthalmic professionals.
 
@@ -115,6 +117,7 @@ class OnboardRequest(BaseModel):
 class OnboardResponse(BaseModel):
     student_id: str
     mock_mode: bool
+    role: str = "student"
 
 class ChatMessage(BaseModel):
     role: str   # "user" | "assistant"
@@ -156,11 +159,22 @@ def onboard(body: OnboardRequest):
     if not body.full_name.strip() or not body.email.strip():
         raise HTTPException(status_code=400, detail="full_name and email are required")
 
-    student_id = get_or_create_student(body.full_name.strip(), body.email.strip().lower())
+    email = body.email.strip().lower()
+    student_id = get_or_create_student(body.full_name.strip(), email)
     if not has_consented(student_id):
         record_consent(student_id)
 
-    return OnboardResponse(student_id=student_id, mock_mode=MOCK_MODE)
+    # Check if this email belongs to a supervisor
+    role = "student"
+    try:
+        from tools.shared.gsheets import get_rows as _get_rows
+        supervisors = _get_rows("snec_supervisors", filters={"email": email})
+        if supervisors:
+            role = "supervisor"
+    except Exception:
+        pass
+
+    return OnboardResponse(student_id=student_id, mock_mode=MOCK_MODE, role=role)
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -425,6 +439,30 @@ class CheckinAnswerResponse(BaseModel):
     feedback: str
 
 
+# ── Supervisor models ──────────────────────────────────────────────────────
+
+class CohortSummaryResponse(BaseModel):
+    total: int
+    active_this_week: int
+    inactive_7_plus_days: list[dict]
+    weakest_topics: list[str]
+    at_risk_count: int
+
+class AtRiskResponse(BaseModel):
+    students: list[dict]
+
+class StudentProfileResponse(BaseModel):
+    student_id: str
+    weak_topics: list[str]
+    missed_findings: list[str]
+    retention_scores: dict
+    session_count: int
+    streak: int
+    last_active: str
+    learning_velocity: str
+    checkin_done_today: bool
+
+
 # ── Check-in endpoints ─────────────────────────────────────────────────────
 
 @app.get("/api/checkin/status", response_model=CheckinStatusResponse)
@@ -506,3 +544,47 @@ def checkin_answer(body: CheckinAnswerRequest):
         pass
 
     return CheckinAnswerResponse(correct=correct, feedback=feedback)
+
+
+# ── Supervisor endpoints ───────────────────────────────────────────────────
+
+@app.get("/api/supervisor/cohort", response_model=CohortSummaryResponse)
+def supervisor_cohort():
+    try:
+        result = _cohort_summary()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return CohortSummaryResponse(**result)
+
+
+@app.get("/api/supervisor/at-risk", response_model=AtRiskResponse)
+def supervisor_at_risk():
+    try:
+        students = _get_at_risk()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return AtRiskResponse(students=students)
+
+
+@app.get("/api/supervisor/student/{student_id}", response_model=StudentProfileResponse)
+def supervisor_student(student_id: str):
+    import json as _json
+    try:
+        profile = get_profile(student_id)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    try:
+        return StudentProfileResponse(
+            student_id=profile["student_id"],
+            weak_topics=_json.loads(profile.get("weak_topics", "[]") or "[]"),
+            missed_findings=_json.loads(profile.get("missed_findings", "[]") or "[]"),
+            retention_scores=_json.loads(profile.get("retention_scores", "{}") or "{}"),
+            session_count=int(profile.get("session_count", "0") or "0"),
+            streak=int(profile.get("streak", "0") or "0"),
+            last_active=profile.get("last_active", ""),
+            learning_velocity=profile.get("learning_velocity", "stable"),
+            checkin_done_today=str(profile.get("checkin_done_today", "false")).lower() == "true",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

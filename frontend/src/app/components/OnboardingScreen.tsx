@@ -68,7 +68,12 @@ export function OnboardingScreen() {
       const data = await res.json();
       sessionStorage.setItem("eyeq_user", JSON.stringify({ fullName, email }));
       sessionStorage.setItem("eyeq_student_id", data.student_id);
-      navigate("/dashboard");
+      sessionStorage.setItem("eyeq_role", data.role ?? "student");
+      if (data.role === "supervisor") {
+        navigate("/supervisor");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setErrors((prev) => ({ ...prev, api: "Could not connect to server. Is the backend running?" }));
     } finally {
