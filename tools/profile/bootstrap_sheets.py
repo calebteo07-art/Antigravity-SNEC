@@ -26,6 +26,10 @@ SHEETS = {
         "week_start", "active_students", "inactive_students", "weakest_topics",
         "at_risk_count", "report_json",
     ],
+    "snec_image_results": [
+        "result_id", "student_id", "image_id", "timestamp", "modality",
+        "student_description", "score", "correct_findings", "missed_findings",
+    ],
 }
 
 

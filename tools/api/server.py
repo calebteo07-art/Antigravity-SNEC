@@ -18,6 +18,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -34,6 +35,8 @@ from tools.profile.update_profile import update_profile
 from tools.profile.summarize_gaps import summarize_gaps
 from tools.supervisor.cohort_summary import cohort_summary as _cohort_summary
 from tools.supervisor.at_risk import get_at_risk as _get_at_risk
+from tools.image_quiz.evaluate_description import evaluate_description
+from tools.image_quiz.log_result import log_image_result
 
 PATIENT_SYSTEM = """You are playing the role of a patient in a clinical case simulation for ophthalmic professionals.
 
@@ -48,6 +51,7 @@ IMPORTANT RULES:
 Case details for your reference (do not reveal unless asked):
 {case_json}"""
 
+IMAGES_DIR = PROJECT_ROOT / "images"
 KB_PATH = PROJECT_ROOT / "workflows" / "ophthalmology_kb.md"
 _KB_TEXT: Optional[str] = None
 
@@ -588,3 +592,117 @@ def supervisor_student(student_id: str):
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ── Image quiz helpers ─────────────────────────────────────────────────────
+
+def _load_image_meta(image_id: str) -> tuple[dict, Path]:
+    """Return (meta_dict, png_path) for the given image_id, or raise 404."""
+    for json_path in IMAGES_DIR.glob("*.json"):
+        try:
+            meta = json.loads(json_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if meta.get("image_id") == image_id:
+            png_path = IMAGES_DIR / meta["filename"]
+            return meta, png_path
+    raise HTTPException(status_code=404, detail=f"Image '{image_id}' not found")
+
+
+def _list_images() -> list[dict]:
+    if not IMAGES_DIR.exists():
+        return []
+    result = []
+    for json_path in sorted(IMAGES_DIR.glob("*.json")):
+        try:
+            meta = json.loads(json_path.read_text(encoding="utf-8"))
+            result.append(meta)
+        except Exception:
+            pass
+    return result
+
+
+# ── Image quiz models ──────────────────────────────────────────────────────
+
+class ImageInfo(BaseModel):
+    image_id: str
+    modality: str
+    eye: str
+    difficulty: str
+    topic: str
+
+class ImagesResponse(BaseModel):
+    images: list[ImageInfo]
+
+class ImageSubmitRequest(BaseModel):
+    student_id: str
+    description: str
+
+class ImageSubmitResponse(BaseModel):
+    score: int
+    correct_findings: list[str]
+    missed_findings: list[str]
+    incorrect_findings: list[str]
+    diagnosis_correct: bool
+    feedback: str
+    mock_mode: bool
+
+
+# ── Image quiz endpoints ───────────────────────────────────────────────────
+
+@app.get("/api/images", response_model=ImagesResponse)
+def get_images():
+    images = [
+        ImageInfo(
+            image_id=m["image_id"],
+            modality=m.get("modality", ""),
+            eye=m.get("eye", ""),
+            difficulty=m.get("difficulty", "intermediate"),
+            topic=m.get("topic", ""),
+        )
+        for m in _list_images()
+    ]
+    return ImagesResponse(images=images)
+
+
+@app.get("/api/images/{image_id}/file")
+def get_image_file(image_id: str):
+    meta, png_path = _load_image_meta(image_id)
+    if not png_path.exists():
+        raise HTTPException(status_code=404, detail="Image file not found on disk")
+    return FileResponse(str(png_path), media_type="image/png")
+
+
+@app.post("/api/images/{image_id}/submit", response_model=ImageSubmitResponse)
+def image_submit(image_id: str, body: ImageSubmitRequest):
+    meta, png_path = _load_image_meta(image_id)
+
+    image_path = png_path if png_path.exists() else None
+    result = evaluate_description(meta, body.description, image_path)
+
+    result["_raw_description"] = body.description
+    try:
+        log_image_result(body.student_id, meta, result)
+    except Exception:
+        pass
+
+    try:
+        score_normalised = result.get("score", 0) / 10
+        update_profile(
+            body.student_id,
+            topic=meta.get("topic", "image_quiz"),
+            score=score_normalised,
+            new_missed_findings=result.get("missed_findings", []),
+        )
+    except Exception:
+        pass
+
+    return ImageSubmitResponse(
+        score=int(result.get("score", 0)),
+        correct_findings=result.get("correct_findings", []),
+        missed_findings=result.get("missed_findings", []),
+        incorrect_findings=result.get("incorrect_findings", []),
+        diagnosis_correct=bool(result.get("diagnosis_correct", False)),
+        feedback=result.get("feedback", ""),
+        mock_mode=MOCK_MODE,
+    )
