@@ -401,3 +401,108 @@ def case_submit(case_id: str, body: CaseSubmitRequest):
         mock_mode=MOCK_MODE,
         debrief=debrief_text,
     )
+
+
+# ── Check-in models ────────────────────────────────────────────────────────
+
+class CheckinStatusResponse(BaseModel):
+    checkin_done_today: bool
+    streak: int
+    weak_topic: str | None
+
+class CheckinQuestionResponse(BaseModel):
+    question: str
+    topic: str
+
+class CheckinAnswerRequest(BaseModel):
+    student_id: str
+    question: str
+    answer: str
+    topic: str
+
+class CheckinAnswerResponse(BaseModel):
+    correct: bool
+    feedback: str
+
+
+# ── Check-in endpoints ─────────────────────────────────────────────────────
+
+@app.get("/api/checkin/status", response_model=CheckinStatusResponse)
+def checkin_status(student_id: str):
+    try:
+        profile = get_profile(student_id)
+    except Exception:
+        return CheckinStatusResponse(checkin_done_today=True, streak=0, weak_topic=None)
+
+    done = str(profile.get("checkin_done_today", "false")).lower() == "true"
+    streak = int(profile.get("streak", "0") or "0")
+    try:
+        import json as _json
+        weak = _json.loads(profile.get("weak_topics", "[]") or "[]")
+        weak_topic = weak[0] if weak else None
+    except Exception:
+        weak_topic = None
+
+    return CheckinStatusResponse(
+        checkin_done_today=done,
+        streak=streak,
+        weak_topic=weak_topic,
+    )
+
+
+@app.get("/api/checkin/question", response_model=CheckinQuestionResponse)
+def checkin_question(student_id: str):
+    try:
+        profile = get_profile(student_id)
+        import json as _json
+        weak = _json.loads(profile.get("weak_topics", "[]") or "[]")
+        topic = weak[0] if weak else "Ophthalmology"
+    except Exception:
+        topic = "Ophthalmology"
+
+    system = (
+        "You are an ophthalmology tutor running a 60-second warm-up check-in. "
+        "Generate ONE concise clinical question targeting the given topic. "
+        "Return only the question text — no preamble, no numbering."
+    )
+    question = ask(
+        system_prompt=system,
+        messages=[{"role": "user", "content": f"Topic: {topic}"}],
+        max_tokens=120,
+        feature="checkin",
+    )
+    return CheckinQuestionResponse(question=question.strip(), topic=topic)
+
+
+@app.post("/api/checkin/answer", response_model=CheckinAnswerResponse)
+def checkin_answer(body: CheckinAnswerRequest):
+    system = (
+        "You are an ophthalmology tutor evaluating a warm-up answer. "
+        "Respond in this exact format:\n"
+        "CORRECT: true or false\n"
+        "FEEDBACK: one sentence — confirm correct answer or correct the error, plus one line why it matters.\n"
+        "Do not use markdown."
+    )
+    raw = ask(
+        system_prompt=system,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"Question: {body.question}\n"
+                f"Student answer: {body.answer}"
+            ),
+        }],
+        max_tokens=150,
+        feature="checkin",
+    )
+
+    correct = "true" in raw.lower().split("correct:")[-1][:10]
+    feedback_parts = raw.split("FEEDBACK:")
+    feedback = feedback_parts[-1].strip() if len(feedback_parts) > 1 else raw.strip()
+
+    try:
+        update_profile(body.student_id, checkin_done=True)
+    except Exception:
+        pass
+
+    return CheckinAnswerResponse(correct=correct, feedback=feedback)
