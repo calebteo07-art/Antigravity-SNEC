@@ -7,6 +7,7 @@ import { CaseSessionScreen } from "./components/CaseSessionScreen";
 import { FlashcardScreen } from "./components/FlashcardScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
 import { DailyCheckInScreen } from "./components/DailyCheckInScreen";
+import { SupervisorDashboard } from "./components/SupervisorDashboard";
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +21,10 @@ export const router = createBrowserRouter([
   {
     path: "/checkin",
     Component: DailyCheckInScreen,
+  },
+  {
+    path: "/supervisor",
+    Component: SupervisorDashboard,
   },
   {
     path: "/chat",
