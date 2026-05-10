@@ -28,3 +28,7 @@ __pycache__/
 
 # Reference docs (read on demand, not auto-loaded)
 docs/
+
+# Brainstorm session artifacts and test cache
+.superpowers/
+.pytest_cache/
