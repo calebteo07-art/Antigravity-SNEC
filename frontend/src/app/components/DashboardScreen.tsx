@@ -47,6 +47,26 @@ export function DashboardScreen() {
 
   const firstName = (userData.fullName || "Student").split(" ")[0];
 
+  const [checkinChecked, setCheckinChecked] = React.useState(false);
+
+  React.useEffect(() => {
+    const studentId = sessionStorage.getItem("eyeq_student_id");
+    if (!studentId) { setCheckinChecked(true); return; }
+
+    fetch(`http://localhost:8000/api/checkin/status?student_id=${studentId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.checkin_done_today) {
+          navigate("/checkin");
+        } else {
+          setCheckinChecked(true);
+        }
+      })
+      .catch(() => setCheckinChecked(true));
+  }, [navigate]);
+
+  if (!checkinChecked) return null;
+
   return (
     <div className="min-h-screen bg-[#0D1B2A] flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
       {/* Background glow */}

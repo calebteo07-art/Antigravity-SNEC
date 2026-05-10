@@ -6,6 +6,7 @@ import { CaseListScreen } from "./components/CaseListScreen";
 import { CaseSessionScreen } from "./components/CaseSessionScreen";
 import { FlashcardScreen } from "./components/FlashcardScreen";
 import { SummaryScreen } from "./components/SummaryScreen";
+import { DailyCheckInScreen } from "./components/DailyCheckInScreen";
 
 export const router = createBrowserRouter([
   {
@@ -15,6 +16,10 @@ export const router = createBrowserRouter([
   {
     path: "/dashboard",
     Component: DashboardScreen,
+  },
+  {
+    path: "/checkin",
+    Component: DailyCheckInScreen,
   },
   {
     path: "/chat",
