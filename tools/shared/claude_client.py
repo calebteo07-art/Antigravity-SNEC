@@ -64,6 +64,17 @@ _MOCK_RESPONSES: dict[str, str] = {
         "Recommend visual field testing and OCT RNFL analysis."
     ),
     "default": "[MOCK] This is a mock response. Add GEMINI_API_KEY to .env to use the real Gemini API.",
+    "checkin": (
+        "What is the most common cause of painless, gradual visual field loss in a 65-year-old?"
+    ),
+    "debrief": (
+        "**What you got right:** Correctly identified the presenting symptom as insidious peripheral vision loss. "
+        "Good history of family risk factors.\n\n"
+        "**What you missed:** Did not ask about medication history (steroids can cause secondary glaucoma). "
+        "Investigation plan lacked pachymetry.\n\n"
+        "**Why it matters clinically:** Corneal thickness affects IOP measurement accuracy — thin corneas underestimate IOP.\n\n"
+        "**Focus for next time:** Review the full glaucoma investigation panel: HVF, OCT RNFL, gonioscopy, pachymetry."
+    ),
 }
 
 

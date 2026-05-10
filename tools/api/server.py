@@ -29,6 +29,9 @@ from tools.chatbot.log_session import log_session
 from tools.flashcards.generate_cards import generate_and_return_cards
 from tools.cases.load_case import load_case, list_available_cases
 from tools.cases.evaluate_response import evaluate_case
+from tools.profile.get_profile import get_profile
+from tools.profile.update_profile import update_profile
+from tools.profile.summarize_gaps import summarize_gaps
 
 PATIENT_SYSTEM = """You are playing the role of a patient in a clinical case simulation for ophthalmic professionals.
 
@@ -164,8 +167,17 @@ def onboard(body: OnboardRequest):
 def chat(body: ChatRequest):
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
 
+    system_prompt = _kb()
+    try:
+        profile = get_profile(body.student_id)
+        gap_context = summarize_gaps(profile)
+        if gap_context:
+            system_prompt = f"## Student Context\n{gap_context}\n\n---\n\n{system_prompt}"
+    except Exception:
+        pass  # proceed with base prompt
+
     raw = ask(
-        system_prompt=_kb(),
+        system_prompt=system_prompt,
         messages=messages,
         max_tokens=1024,
         feature="chatbot",
@@ -193,6 +205,11 @@ def end_session(body: EndSessionRequest):
         session_id=session_id,
         messages=messages,
     )
+
+    try:
+        update_profile(body.student_id)
+    except Exception:
+        pass
 
     return EndSessionResponse(
         session_id=session_id,
@@ -307,7 +324,6 @@ def case_submit(case_id: str, body: CaseSubmitRequest):
         raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found")
 
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
-    # Append the student's final answer as a user message so the evaluator sees it
     messages.append({
         "role": "user",
         "content": f"Diagnosis: {body.diagnosis}\nManagement Plan: {body.management_plan}",
@@ -327,6 +343,23 @@ def case_submit(case_id: str, body: CaseSubmitRequest):
         session_id=session_id,
         messages=messages,
     )
+
+    # Update profile: retention score = total_score / 40
+    try:
+        retention_score = raw_result.get("total_score", 0) / 40
+        missed = []
+        for domain in ("history_feedback", "investigations_feedback", "diagnosis_feedback", "management_feedback"):
+            feedback = raw_result.get(domain, "")
+            if feedback and any(word in feedback.lower() for word in ("miss", "forgot", "lack", "no mention")):
+                missed.append(f"{domain.replace('_feedback', '')} gap in {case['topic']}")
+        update_profile(
+            body.student_id,
+            topic=case["topic"],
+            score=retention_score,
+            new_missed_findings=missed,
+        )
+    except Exception:
+        pass
 
     return CaseSubmitResponse(
         result=DomainScore(**{k: raw_result[k] for k in DomainScore.model_fields}),
