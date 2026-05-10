@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { HolographicEyeLogo } from "./HolographicEyeLogo";
-import { MessageSquare, Stethoscope, Layers, ChevronRight, LogOut } from "lucide-react";
+import { MessageSquare, Stethoscope, Layers, ChevronRight, LogOut, Sparkles } from "lucide-react";
 
 const MODES = [
   {
@@ -48,6 +48,7 @@ export function DashboardScreen() {
   const firstName = (userData.fullName || "Student").split(" ")[0];
 
   const [checkinChecked, setCheckinChecked] = React.useState(false);
+  const [suggestion, setSuggestion] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const studentId = sessionStorage.getItem("eyeq_student_id");
@@ -63,6 +64,11 @@ export function DashboardScreen() {
         }
       })
       .catch(() => setCheckinChecked(true));
+
+    fetch(`http://localhost:8000/api/study-suggestion?student_id=${studentId}`)
+      .then((r) => r.json())
+      .then((data) => setSuggestion(data.suggestion))
+      .catch(() => null);
   }, [navigate]);
 
   if (!checkinChecked) return null;
@@ -114,6 +120,22 @@ export function DashboardScreen() {
             Sign out
           </button>
         </div>
+
+        {/* AI study suggestion */}
+        {suggestion && (
+          <motion.div
+            className="mb-6 flex items-start gap-3 px-5 py-4 rounded-2xl border"
+            style={{ background: "rgba(20,184,166,0.07)", borderColor: "rgba(20,184,166,0.25)" }}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Sparkles size={16} style={{ color: "#14B8A6", flexShrink: 0, marginTop: 2 }} />
+            <p className="text-slate-300" style={{ fontSize: "0.8125rem", lineHeight: 1.5 }}>
+              {suggestion}
+            </p>
+          </motion.div>
+        )}
 
         {/* Mode cards */}
         <div className="space-y-4">

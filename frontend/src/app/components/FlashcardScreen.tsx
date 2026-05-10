@@ -7,7 +7,7 @@ import { XPBar } from "./XPBar";
 import { StreakDisplay } from "./StreakDisplay";
 import { AchievementManager } from "./AchievementToast";
 import { getUserProgress, addXP, checkAndUnlockAchievements, XP_REWARDS } from "../utils/gamification";
-import { RotateCcw, ChevronLeft, ChevronRight, Layers, Zap, Sparkles, Trophy } from "lucide-react";
+import { RotateCcw, ChevronLeft, ChevronRight, Layers, Zap, Sparkles, Trophy, Brain, CheckCircle, XCircle } from "lucide-react";
 
 interface Flashcard {
   id: number;
@@ -81,6 +81,10 @@ const RATINGS = [
   { label: "Easy", color: "bg-emerald-500 hover:bg-emerald-600", textColor: "text-white", borderColor: "border-emerald-500", value: 4 },
 ];
 
+const API = "http://localhost:8000";
+
+interface AiFeedback { feedback: string; score: number; }
+
 export function FlashcardScreen() {
   const navigate = useNavigate();
   const [FLASHCARDS] = useState<Flashcard[]>(() => loadFlashcards());
@@ -88,6 +92,11 @@ export function FlashcardScreen() {
   const [isFlipped, setIsFlipped] = useState(false);
   const [ratedCards, setRatedCards] = useState<Record<number, number>>({});
   const [animating, setAnimating] = useState(false);
+
+  const [userAttempt, setUserAttempt] = useState("");
+  const [aiFeedback, setAiFeedback] = useState<AiFeedback | null>(null);
+  const [aiChecking, setAiChecking] = useState(false);
+  const studentId = sessionStorage.getItem("eyeq_student_id") ?? "";
 
   const [userProgress, setUserProgress] = useState(getUserProgress());
   const [newAchievements, setNewAchievements] = useState<string[]>([]);
@@ -98,8 +107,37 @@ export function FlashcardScreen() {
   const progress = ((currentIndex) / FLASHCARDS.length) * 100;
   const remaining = FLASHCARDS.length - Object.keys(ratedCards).length;
 
+  const resetCardState = () => {
+    setUserAttempt("");
+    setAiFeedback(null);
+    setAiChecking(false);
+    setIsFlipped(false);
+  };
+
+  const checkWithAi = (attempt: string) => {
+    if (!attempt.trim() || aiFeedback) return;
+    setAiChecking(true);
+    fetch(`${API}/api/flashcards/check`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: studentId,
+        question: card.question,
+        student_answer: attempt,
+        correct_answer: card.answer,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data: AiFeedback) => { setAiFeedback(data); setAiChecking(false); })
+      .catch(() => setAiChecking(false));
+  };
+
   const flipCard = () => {
-    if (!animating) setIsFlipped((f) => !f);
+    if (animating) return;
+    if (!isFlipped && userAttempt.trim() && !aiFeedback) {
+      checkWithAi(userAttempt);
+    }
+    setIsFlipped((f) => !f);
   };
 
   const handleRating = (value: number) => {
@@ -144,7 +182,7 @@ export function FlashcardScreen() {
     }
 
     setAnimating(true);
-    setIsFlipped(false);
+    resetCardState();
 
     setTimeout(() => {
       if (currentIndex < FLASHCARDS.length - 1) {
@@ -159,7 +197,7 @@ export function FlashcardScreen() {
   const goToPrev = () => {
     if (currentIndex > 0 && !animating) {
       setAnimating(true);
-      setIsFlipped(false);
+      resetCardState();
       setTimeout(() => {
         setCurrentIndex((i) => i - 1);
         setAnimating(false);
@@ -170,7 +208,7 @@ export function FlashcardScreen() {
   const goToNext = () => {
     if (currentIndex < FLASHCARDS.length - 1 && !animating) {
       setAnimating(true);
-      setIsFlipped(false);
+      resetCardState();
       setTimeout(() => {
         setCurrentIndex((i) => i + 1);
         setAnimating(false);
@@ -392,9 +430,84 @@ export function FlashcardScreen() {
           </button>
         </div>
 
+        {/* Active recall input (shown before flip) */}
+        <AnimatePresence>
+          {!isFlipped && (
+            <motion.div
+              className="w-full max-w-2xl mt-5"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+            >
+              <textarea
+                value={userAttempt}
+                onChange={(e) => setUserAttempt(e.target.value)}
+                placeholder="Type your answer here before flipping (optional — AI will grade it)"
+                rows={2}
+                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-slate-300 placeholder-slate-600 resize-none focus:outline-none focus:border-[#14B8A6]/50"
+                style={{ fontSize: "0.85rem", lineHeight: 1.5 }}
+              />
+              <div className="flex items-center justify-between mt-2 px-1">
+                <span className="text-slate-600" style={{ fontSize: "0.7rem" }}>
+                  Tap the card to reveal the answer
+                </span>
+                {userAttempt.trim() && (
+                  <button
+                    onClick={flipCard}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white"
+                    style={{ fontSize: "0.75rem", fontWeight: 600, background: "#14B8A6" }}
+                  >
+                    <Brain size={12} />
+                    Check & Flip
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* AI feedback (shown after flip, if attempt was made) */}
+        <AnimatePresence>
+          {isFlipped && (userAttempt.trim() || aiChecking) && (
+            <motion.div
+              className="w-full max-w-2xl mt-4 px-4 py-3 rounded-xl border"
+              style={{ background: "rgba(20,184,166,0.06)", borderColor: "rgba(20,184,166,0.2)" }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {aiChecking ? (
+                <div className="flex items-center gap-2 text-slate-400" style={{ fontSize: "0.8rem" }}>
+                  <div className="w-3.5 h-3.5 border-2 border-[#14B8A6] border-t-transparent rounded-full animate-spin" />
+                  AI is reviewing your answer…
+                </div>
+              ) : aiFeedback ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    {aiFeedback.score >= 7
+                      ? <CheckCircle size={14} style={{ color: "#4ADE80" }} />
+                      : aiFeedback.score >= 4
+                      ? <Sparkles size={14} style={{ color: "#F59E0B" }} />
+                      : <XCircle size={14} style={{ color: "#F87171" }} />
+                    }
+                    <span style={{ fontSize: "0.7rem", fontWeight: 700, color: aiFeedback.score >= 7 ? "#4ADE80" : aiFeedback.score >= 4 ? "#F59E0B" : "#F87171" }}>
+                      AI Score: {aiFeedback.score}/10
+                    </span>
+                  </div>
+                  <p className="text-slate-300" style={{ fontSize: "0.8rem", lineHeight: 1.5 }}>
+                    {aiFeedback.feedback}
+                  </p>
+                </div>
+              ) : null}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Rating Buttons (shown when flipped) */}
         <div
-          className={`w-full max-w-2xl mt-6 transition-all duration-300 ${
+          className={`w-full max-w-2xl mt-4 transition-all duration-300 ${
             isFlipped ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
           }`}
         >
@@ -432,15 +545,6 @@ export function FlashcardScreen() {
             <span className="text-emerald-500" style={{ fontSize: "0.7rem" }}>Mastered</span>
           </div>
         </div>
-
-        {/* Hint when not flipped */}
-        {!isFlipped && (
-          <div className="mt-6 text-center">
-            <p className="text-slate-400" style={{ fontSize: "0.8rem" }}>
-              Tap the card to reveal the answer
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Bottom action */}

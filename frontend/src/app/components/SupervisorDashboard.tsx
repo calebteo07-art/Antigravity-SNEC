@@ -4,7 +4,7 @@ import { HolographicEyeLogo } from "./HolographicEyeLogo";
 import { CohortHeatmap } from "./CohortHeatmap";
 import { AtRiskTable } from "./AtRiskTable";
 import { StudentDrillDown } from "./StudentDrillDown";
-import { Users, AlertTriangle, Activity, LogOut } from "lucide-react";
+import { Users, AlertTriangle, Activity, LogOut, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 
 const API = "http://localhost:8000";
@@ -32,6 +32,7 @@ export function SupervisorDashboard() {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [insights, setInsights] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -47,6 +48,11 @@ export function SupervisorDashboard() {
         setError("Could not load supervisor data. Is the backend running?");
         setLoading(false);
       });
+
+    fetch(`${API}/api/supervisor/insights`)
+      .then((r) => r.json())
+      .then((data) => setInsights(data.narrative))
+      .catch(() => null);
   }, []);
 
   return (
@@ -86,6 +92,22 @@ export function SupervisorDashboard() {
 
       {cohort && (
         <div className="max-w-5xl mx-auto space-y-6">
+          {/* AI cohort narrative */}
+          {insights && (
+            <motion.div
+              className="flex items-start gap-3 px-5 py-4 rounded-2xl border"
+              style={{ background: "rgba(20,184,166,0.06)", borderColor: "rgba(20,184,166,0.2)" }}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Sparkles size={15} style={{ color: "#14B8A6", flexShrink: 0, marginTop: 2 }} />
+              <p className="text-slate-300" style={{ fontSize: "0.8125rem", lineHeight: 1.6 }}>
+                {insights}
+              </p>
+            </motion.div>
+          )}
+
           {/* KPI row */}
           <div className="grid grid-cols-3 gap-4">
             {[

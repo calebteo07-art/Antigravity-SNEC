@@ -594,6 +594,129 @@ def supervisor_student(student_id: str):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+# ── Flashcard AI check ─────────────────────────────────────────────────────
+
+class FlashcardCheckRequest(BaseModel):
+    student_id: str
+    question: str
+    student_answer: str
+    correct_answer: str
+
+class FlashcardCheckResponse(BaseModel):
+    feedback: str
+    score: int
+    mock_mode: bool
+
+@app.post("/api/flashcards/check", response_model=FlashcardCheckResponse)
+def flashcard_check(body: FlashcardCheckRequest):
+    system = (
+        "You are an ophthalmology tutor evaluating a student's active recall attempt. "
+        "Compare the student's answer to the correct answer. "
+        "Return ONLY valid JSON with no other text:\n"
+        '{"score": <0-10>, "feedback": "<2 concise sentences: what they got right, then what they missed or got wrong>"}'
+    )
+    raw = ask(
+        system_prompt=system,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"Question: {body.question}\n\n"
+                f"Correct answer: {body.correct_answer}\n\n"
+                f"Student answer: {body.student_answer}"
+            ),
+        }],
+        max_tokens=200,
+        feature="flashcard",
+    )
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+    try:
+        parsed = json.loads(text)
+        return FlashcardCheckResponse(
+            feedback=parsed.get("feedback", raw[:300]),
+            score=int(parsed.get("score", 5)),
+            mock_mode=MOCK_MODE,
+        )
+    except Exception:
+        return FlashcardCheckResponse(feedback=raw[:300], score=5, mock_mode=MOCK_MODE)
+
+
+# ── Study suggestion ───────────────────────────────────────────────────────
+
+class StudySuggestionResponse(BaseModel):
+    suggestion: str
+    focus_topic: str | None = None
+
+@app.get("/api/study-suggestion", response_model=StudySuggestionResponse)
+def study_suggestion(student_id: str):
+    import json as _json
+    focus: str | None = None
+    try:
+        profile = get_profile(student_id)
+        weak = _json.loads(profile.get("weak_topics", "[]") or "[]")
+        streak = int(profile.get("streak", "0") or "0")
+        session_count = int(profile.get("session_count", "0") or "0")
+        velocity = profile.get("learning_velocity", "stable")
+        focus = weak[0] if weak else None
+        context = (
+            f"Weak topics: {', '.join(weak) if weak else 'none identified yet'}\n"
+            f"Study streak: {streak} days\n"
+            f"Total sessions: {session_count}\n"
+            f"Learning velocity: {velocity}"
+        )
+    except Exception:
+        context = "New student — no profile data yet."
+
+    system = (
+        "You are an ophthalmology study coach. "
+        "Give the student one specific, clinical, motivating sentence telling them exactly what to study today and why. "
+        "Under 30 words. No preamble."
+    )
+    suggestion = ask(
+        system_prompt=system,
+        messages=[{"role": "user", "content": context}],
+        max_tokens=80,
+        feature="suggestion",
+    )
+    return StudySuggestionResponse(suggestion=suggestion.strip(), focus_topic=focus)
+
+
+# ── Supervisor AI insights ─────────────────────────────────────────────────
+
+class SupervisorInsightsResponse(BaseModel):
+    narrative: str
+
+@app.get("/api/supervisor/insights", response_model=SupervisorInsightsResponse)
+def supervisor_insights():
+    try:
+        cohort = _cohort_summary()
+        at_risk = _get_at_risk()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    context = (
+        f"Cohort size: {cohort.get('total', 0)} students\n"
+        f"Active this week: {cohort.get('active_this_week', 0)}\n"
+        f"At-risk count: {cohort.get('at_risk_count', 0)}\n"
+        f"Weakest topics: {', '.join(cohort.get('weakest_topics', [])) or 'none recorded'}\n"
+        f"At-risk students: {len(at_risk)}"
+    )
+    system = (
+        "You are an AI assistant for an ophthalmology education supervisor. "
+        "Write 2-3 sentences summarising the cohort's current state and the single most important action the supervisor should take today. "
+        "Be specific and direct. No preamble."
+    )
+    narrative = ask(
+        system_prompt=system,
+        messages=[{"role": "user", "content": context}],
+        max_tokens=150,
+        feature="supervisor",
+    )
+    return SupervisorInsightsResponse(narrative=narrative.strip())
+
+
 # ── Image quiz helpers ─────────────────────────────────────────────────────
 
 def _load_image_meta(image_id: str) -> tuple[dict, Path]:
