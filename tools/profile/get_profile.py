@@ -34,6 +34,7 @@ _DEFAULTS = {
 
 
 def _default_profile(student_id: str) -> dict:
+    """Return a new profile dict with defaults for the given student_id."""
     return {"student_id": student_id, **_DEFAULTS}
 
 
