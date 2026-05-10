@@ -58,6 +58,7 @@ export function CaseSessionScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<DomainResult | null>(null);
   const [cards, setCards] = useState<unknown[]>([]);
+  const [debrief, setDebrief] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -137,6 +138,7 @@ export function CaseSessionScreen() {
       const data = await res.json();
       setResult(data.result);
       setCards(data.cards);
+      setDebrief(data.debrief ?? null);
       setShowSubmitForm(false);
     } catch {
       setSubmitError("Evaluation failed. Please try again.");
@@ -362,6 +364,23 @@ export function CaseSessionScreen() {
                   {result.overall_feedback}
                 </p>
               </div>
+
+              {debrief && (
+                <div className="px-4 py-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 mb-4">
+                  <p className="text-slate-400 mb-2" style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                    Debrief
+                  </p>
+                  <div className="text-slate-300 whitespace-pre-wrap" style={{ fontSize: "0.8125rem", lineHeight: 1.7 }}>
+                    {debrief.split(/\*\*(.*?)\*\*/g).map((part, i) =>
+                      i % 2 === 1 ? (
+                        <strong key={i} className="text-white">{part}</strong>
+                      ) : (
+                        <span key={i}>{part}</span>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={() => {

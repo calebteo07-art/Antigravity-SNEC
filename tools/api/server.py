@@ -270,6 +270,7 @@ class CaseSubmitResponse(BaseModel):
     result: DomainScore
     cards: list[Flashcard]
     mock_mode: bool
+    debrief: str | None = None
 
 
 # ── Case endpoints ─────────────────────────────────────────────────────────
@@ -361,8 +362,42 @@ def case_submit(case_id: str, body: CaseSubmitRequest):
     except Exception:
         pass
 
+    # Generate structured debrief
+    debrief_text: str | None = None
+    try:
+        debrief_prompt = (
+            "You are an ophthalmology clinical educator reviewing a student's case performance. "
+            "Write a structured debrief in exactly this format:\n\n"
+            "**What you got right:** ...\n\n"
+            "**What you missed:** ...\n\n"
+            "**Why it matters clinically:** ...\n\n"
+            "**Focus for next time:** ...\n\n"
+            "Be specific and clinical. Do not repeat the scores — focus on insight."
+        )
+        debrief_messages = [
+            {
+                "role": "user",
+                "content": (
+                    f"Case: {case['title']}\n"
+                    f"Diagnosis submitted: {body.diagnosis}\n"
+                    f"Management submitted: {body.management_plan}\n"
+                    f"Score: {raw_result.get('total_score', 0)}/40\n"
+                    f"Overall feedback: {raw_result.get('overall_feedback', '')}"
+                ),
+            }
+        ]
+        debrief_text = ask(
+            system_prompt=debrief_prompt,
+            messages=debrief_messages,
+            max_tokens=512,
+            feature="debrief",
+        )
+    except Exception:
+        debrief_text = None
+
     return CaseSubmitResponse(
         result=DomainScore(**{k: raw_result[k] for k in DomainScore.model_fields}),
         cards=[Flashcard(**c) for c in cards],
         mock_mode=MOCK_MODE,
+        debrief=debrief_text,
     )
