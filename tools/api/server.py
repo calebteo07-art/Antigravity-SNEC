@@ -11,7 +11,6 @@ Run:
 """
 
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Optional
@@ -63,44 +62,27 @@ def _kb() -> str:
     return _KB_TEXT
 
 
-def _parse_tutor_response(text: str) -> dict:
-    """Parse the 4-section AI response into structured fields."""
-    result = {
-        "explanation": "",
-        "mechanism": "",
-        "clinicalPearl": "",
-        "checkUnderstanding": "",
-        "raw": text,
-    }
+TUTOR_SYSTEM = """You are EyeQ, an expert ophthalmology tutor at SNEC (Singapore National Eye Centre). \
+You teach through Socratic dialogue — your job is to guide students to discover answers, not hand them out.
 
-    # Matches both "**Section:**" and "**Section** —" styles, with optional numbering
-    pattern = re.compile(
-        r"(?:\d+\.\s*)?\*\*(Explanation|Mechanism|Clinical Pearl|Check Your Understanding)\*\*[\s:—]+",
-        re.IGNORECASE,
-    )
-    matches = list(pattern.finditer(text))
+TEACHING APPROACH:
+- Respond directly to what the student actually said or asked. Never give a lecture when a nudge will do.
+- Use probing questions and cues to make the student reason through the answer themselves.
+- When they get something right, affirm it briefly then push deeper with a follow-up question.
+- When they are wrong or vague, ask what led them to that thinking rather than correcting outright.
+- When they are genuinely stuck, give a targeted hint — not the full answer.
+- Keep responses conversational and focused. Two to four sentences, then a question back to the student.
+- Vary your style: sometimes challenge, sometimes encourage, sometimes reframe. Sound like a person.
 
-    key_map = {
-        "explanation": "explanation",
-        "mechanism": "mechanism",
-        "clinical pearl": "clinicalPearl",
-        "check your understanding": "checkUnderstanding",
-    }
+HARD RULES:
+- Never use labelled sections or structured formatting. No "Explanation:", "Mechanism:", "Clinical Pearl:" headers.
+- Never bullet-point a full answer. Write in flowing sentences.
+- Never end a response without either a question or a challenge for the student.
+- Do not repeat information the student already stated correctly back to them verbatim.
+- Avoid phrases like "Great question!" or "Certainly!" — get straight to the teaching.
 
-    for i, match in enumerate(matches):
-        header = match.group(1).lower()
-        key = key_map.get(header)
-        if not key:
-            continue
-        start = match.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        result[key] = text[start:end].strip()
-
-    # Fallback: if no sections parsed, put full text in explanation
-    if not any(result[k] for k in ("explanation", "mechanism", "clinicalPearl", "checkUnderstanding")):
-        result["explanation"] = text.strip()
-
-    return result
+The ophthalmology knowledge base below is your reference. Draw on it naturally, not exhaustively.
+"""
 
 
 app = FastAPI(title="EyeQ API")
@@ -133,11 +115,7 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
 
 class ChatResponse(BaseModel):
-    explanation: str
-    mechanism: str
-    clinicalPearl: str
-    checkUnderstanding: str
-    raw: str
+    content: str
 
 class EndSessionRequest(BaseModel):
     student_id: str
@@ -186,24 +164,24 @@ def onboard(body: OnboardRequest):
 def chat(body: ChatRequest):
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
 
-    system_prompt = _kb()
+    system_prompt = TUTOR_SYSTEM + "\n\n---\n\n" + _kb()
     try:
         profile = get_profile(body.student_id)
         gap_context = summarize_gaps(profile)
         if gap_context:
-            system_prompt = f"## Student Context\n{gap_context}\n\n---\n\n{system_prompt}"
+            system_prompt = f"## Student Weak Areas (steer toward these)\n{gap_context}\n\n{system_prompt}"
     except Exception:
-        pass  # proceed with base prompt
+        pass
 
-    raw = ask(
+    content = ask(
         system_prompt=system_prompt,
         messages=messages,
-        max_tokens=1024,
+        max_tokens=600,
         feature="chatbot",
         model=MODEL,
     )
 
-    return ChatResponse(**_parse_tutor_response(raw))
+    return ChatResponse(content=content)
 
 
 @app.post("/api/end-session", response_model=EndSessionResponse)

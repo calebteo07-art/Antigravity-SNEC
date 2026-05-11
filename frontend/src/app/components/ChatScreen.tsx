@@ -8,13 +8,9 @@ import { AchievementManager } from "./AchievementToast";
 import { getUserProgress, addXP, updateStreak, checkAndUnlockAchievements, XP_REWARDS } from "../utils/gamification";
 import {
   Send,
-  BookOpen,
   Layers,
   ChevronRight,
-  Lightbulb,
   Stethoscope,
-  Brain,
-  HelpCircle,
   User,
   Bot,
   RotateCcw,
@@ -25,13 +21,7 @@ import {
 interface AIMessage {
   type: "ai";
   id: string;
-  sections: {
-    explanation: string;
-    mechanism: string;
-    clinicalPearl: string;
-    checkUnderstanding: string;
-  };
-  raw?: string;
+  content: string;
 }
 
 interface UserMessage {
@@ -42,36 +32,16 @@ interface UserMessage {
 
 type Message = AIMessage | UserMessage;
 
-const SAMPLE_TOPIC = "Diabetic Retinopathy";
+const SAMPLE_TOPIC = "Ophthalmology";
 const INITIAL_MESSAGES: Message[] = [
   {
     type: "ai",
     id: "1",
-    sections: {
-      explanation:
-        "Diabetic retinopathy (DR) is a microvascular complication of diabetes mellitus affecting the retinal vasculature. It is the leading cause of preventable blindness in working-age adults globally. DR is classified into non-proliferative (NPDR) and proliferative (PDR) stages, with macular edema potentially occurring at any stage.",
-      mechanism:
-        "Chronic hyperglycemia triggers multiple pathological pathways: (1) Polyol pathway activation — excess glucose is converted to sorbitol via aldose reductase, causing osmotic stress. (2) Protein kinase C (PKC) activation — increases VEGF production and vascular permeability. (3) Advanced glycation end-products (AGEs) — cross-link basement membrane proteins, thickening vessel walls. (4) Oxidative stress — reactive oxygen species damage pericytes, the primary protective cells of retinal capillaries.",
-      clinicalPearl:
-        "⚡ Pericyte loss is the earliest histological finding in diabetic retinopathy — occurring before any clinically visible changes. This is why trypsin digest preparations of retinal vasculature remain a gold standard for early research detection. Clinically, microaneurysms (dot-shaped red lesions) are the first visible sign on fundoscopy.",
-      checkUnderstanding:
-        "Why does pericyte loss lead to microaneurysm formation in diabetic retinopathy? What role does VEGF play in the transition from NPDR to PDR, and what therapeutic implications does this have?",
-    },
+    content: "What are you working on today? Tell me a topic or ask me anything — we'll work through it together.",
   },
 ];
 
-const AI_RESPONSES: Record<string, AIMessage["sections"]> = {
-  default: {
-    explanation:
-      "Macular edema (DME) in diabetes occurs when fluid accumulates in the macula — the central, high-acuity region of the retina. It is the most common cause of vision loss in diabetic retinopathy and can occur at any stage of the disease.",
-    mechanism:
-      "Breakdown of the inner blood-retinal barrier (iBRB) is central to DME pathogenesis. VEGF-A upregulation causes phosphorylation of occludin and ZO-1 tight junction proteins, increasing endothelial permeability. This allows plasma proteins and fluid to leak into the extracellular space, causing retinal thickening detectable on optical coherence tomography (OCT).",
-    clinicalPearl:
-      "⚡ Clinically Significant Macular Edema (CSME) — defined by the ETDRS criteria — includes any retinal thickening within 500μm of the foveal center. Anti-VEGF agents (ranibizumab, aflibercept, bevacizumab) have become first-line treatment, superseding laser photocoagulation for center-involving DME.",
-    checkUnderstanding:
-      "A 54-year-old with Type 2 DM presents with blurred central vision. OCT shows foveal thickening of 380μm. What is the diagnosis? Outline your management approach, including the rationale for your first-line treatment choice.",
-  },
-};
+const FALLBACK_CONTENT = "I didn't catch that — could you rephrase your question?";
 
 function AIMessageBubble({ message }: { message: AIMessage }) {
   return (
@@ -81,71 +51,16 @@ function AIMessageBubble({ message }: { message: AIMessage }) {
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
-      <motion.div
-        className="flex-shrink-0 w-8 h-8 rounded-full bg-[#14B8A6]/20 border border-[#14B8A6]/40 flex items-center justify-center mt-1"
-        whileHover={{ scale: 1.1, rotate: 360 }}
-        transition={{ duration: 0.3 }}
-      >
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#14B8A6]/20 border border-[#14B8A6]/40 flex items-center justify-center mt-1">
         <Bot size={15} className="text-[#14B8A6]" />
-      </motion.div>
+      </div>
       <div className="flex-1 max-w-[calc(100%-3rem)]">
-        <motion.div
-          className="bg-white rounded-2xl rounded-tl-sm border border-slate-200 shadow-sm overflow-hidden"
-          whileHover={{ boxShadow: "0 10px 30px rgba(0, 0, 0, 0.1)" }}
-          transition={{ duration: 0.2 }}
+        <div
+          className="bg-white rounded-2xl rounded-tl-sm border border-slate-200 shadow-sm px-4 py-3"
+          style={{ fontSize: "0.9rem", lineHeight: 1.7, color: "#374151" }}
         >
-          {/* Section: Explanation */}
-          <div className="border-b border-slate-100">
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-              <BookOpen size={13} className="text-[#14B8A6]" />
-              <span className="text-[#0D1B2A]" style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Explanation
-              </span>
-            </div>
-            <p className="px-4 py-3 text-slate-700" style={{ fontSize: "0.875rem", lineHeight: 1.7 }}>
-              {message.sections.explanation}
-            </p>
-          </div>
-
-          {/* Section: Mechanism */}
-          <div className="border-b border-slate-100">
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-              <Brain size={13} className="text-indigo-500" />
-              <span className="text-[#0D1B2A]" style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Mechanism
-              </span>
-            </div>
-            <p className="px-4 py-3 text-slate-700" style={{ fontSize: "0.875rem", lineHeight: 1.7 }}>
-              {message.sections.mechanism}
-            </p>
-          </div>
-
-          {/* Section: Clinical Pearl */}
-          <div className="border-b border-slate-100">
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100">
-              <Lightbulb size={13} className="text-amber-500" />
-              <span className="text-amber-800" style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Clinical Pearl
-              </span>
-            </div>
-            <p className="px-4 py-3 text-slate-700" style={{ fontSize: "0.875rem", lineHeight: 1.7 }}>
-              {message.sections.clinicalPearl}
-            </p>
-          </div>
-
-          {/* Section: Check Your Understanding */}
-          <div>
-            <div className="flex items-center gap-2 px-4 py-2.5 bg-[#14B8A6]/8 border-b border-[#14B8A6]/15">
-              <HelpCircle size={13} className="text-[#0D9488]" />
-              <span className="text-[#0D6B60]" style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Check Your Understanding
-              </span>
-            </div>
-            <p className="px-4 py-3 text-slate-700" style={{ fontSize: "0.875rem", lineHeight: 1.7, fontStyle: "italic" }}>
-              {message.sections.checkUnderstanding}
-            </p>
-          </div>
-        </motion.div>
+          {message.content}
+        </div>
       </div>
     </motion.div>
   );
@@ -244,7 +159,7 @@ export function ChatScreen() {
       .concat(userMsg)
       .map((m) => {
         if (m.type === "user") return { role: "user", content: m.text };
-        return { role: "assistant", content: m.raw || m.sections.explanation };
+        return { role: "assistant", content: m.content };
       });
 
     try {
@@ -257,21 +172,14 @@ export function ChatScreen() {
       const aiMsg: AIMessage = {
         type: "ai",
         id: (Date.now() + 1).toString(),
-        sections: {
-          explanation: data.explanation,
-          mechanism: data.mechanism,
-          clinicalPearl: data.clinicalPearl,
-          checkUnderstanding: data.checkUnderstanding,
-        },
-        raw: data.raw,
+        content: data.content || FALLBACK_CONTENT,
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch {
       const aiMsg: AIMessage = {
         type: "ai",
         id: (Date.now() + 1).toString(),
-        sections: AI_RESPONSES.default,
-        raw: undefined,
+        content: FALLBACK_CONTENT,
       };
       setMessages((prev) => [...prev, aiMsg]);
     } finally {
@@ -419,7 +327,7 @@ export function ChatScreen() {
               const studentId = sessionStorage.getItem("eyeq_student_id") || "anonymous";
               const apiMessages = messages.map((m) => {
                 if (m.type === "user") return { role: "user", content: m.text };
-                return { role: "assistant", content: m.raw || m.sections.explanation };
+                return { role: "assistant", content: m.content };
               });
               try {
                 const res = await fetch("/api/end-session", {
