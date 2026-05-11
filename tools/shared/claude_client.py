@@ -100,22 +100,17 @@ def _to_gemini_history(messages: list[dict]) -> tuple[list[dict], str]:
 def ask(
     system_prompt: str,
     messages: list[dict],
-    max_tokens: int = 1024,
+    max_tokens: int = 8192,
     feature: str = "default",
     model: str | None = None,
 ) -> str:
     """
     Send a conversation to Gemini and return the response text.
 
-    Args:
-        system_prompt: The system prompt.
-        messages:      Conversation history as list of {"role": "user"/"assistant", "content": str}.
-        max_tokens:    Maximum tokens in the response.
-        feature:       Feature name for mock routing: "chatbot", "flashcard", "case", "image".
-        model:         Override model (defaults to MODEL). Pass MODEL_SMALL for cheap tasks.
-
-    Returns:
-        Response text as a string.
+    max_tokens is set high by default (8192) because gemini-2.5-flash is a thinking
+    model — thinking tokens count against max_output_tokens. Low values cause
+    truncated responses. Callers can lower this for cost reasons but should keep
+    it above ~2048 to leave room for both thinking and the actual response.
     """
     if MOCK_MODE:
         return _mock_response(feature)

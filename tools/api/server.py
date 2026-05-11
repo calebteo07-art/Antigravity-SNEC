@@ -176,7 +176,7 @@ def chat(body: ChatRequest):
     content = ask(
         system_prompt=system_prompt,
         messages=messages,
-        max_tokens=600,
+        max_tokens=2048,
         feature="chatbot",
         model=MODEL,
     )
@@ -308,7 +308,7 @@ def case_chat(case_id: str, body: CaseChatRequest):
     response = ask(
         system_prompt=patient_prompt,
         messages=messages,
-        max_tokens=512,
+        max_tokens=2048,
         feature="case",
     )
     return CaseChatResponse(response=response)
@@ -386,7 +386,7 @@ def case_submit(case_id: str, body: CaseSubmitRequest):
         debrief_text = ask(
             system_prompt=debrief_prompt,
             messages=debrief_messages,
-            max_tokens=512,
+            max_tokens=2048,
             feature="debrief",
         )
     except Exception:
@@ -489,7 +489,7 @@ def checkin_question(student_id: str):
     question = ask(
         system_prompt=system,
         messages=[{"role": "user", "content": f"Topic: {topic}"}],
-        max_tokens=120,
+        max_tokens=2048,
         feature="checkin",
     )
     return CheckinQuestionResponse(question=question.strip(), topic=topic)
@@ -513,7 +513,7 @@ def checkin_answer(body: CheckinAnswerRequest):
                 f"Student answer: {body.answer}"
             ),
         }],
-        max_tokens=150,
+        max_tokens=2048,
         feature="checkin",
     )
 
@@ -604,7 +604,7 @@ def flashcard_check(body: FlashcardCheckRequest):
                 f"Student answer: {body.student_answer}"
             ),
         }],
-        max_tokens=200,
+        max_tokens=2048,
         feature="flashcard",
     )
     text = raw.strip()
@@ -656,7 +656,7 @@ def study_suggestion(student_id: str):
     suggestion = ask(
         system_prompt=system,
         messages=[{"role": "user", "content": context}],
-        max_tokens=80,
+        max_tokens=2048,
         feature="suggestion",
     )
     return StudySuggestionResponse(suggestion=suggestion.strip(), focus_topic=focus)
@@ -690,7 +690,7 @@ def supervisor_insights():
     narrative = ask(
         system_prompt=system,
         messages=[{"role": "user", "content": context}],
-        max_tokens=150,
+        max_tokens=2048,
         feature="supervisor",
     )
     return SupervisorInsightsResponse(narrative=narrative.strip())
