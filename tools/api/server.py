@@ -19,6 +19,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -829,3 +830,9 @@ def image_submit(image_id: str, body: ImageSubmitRequest):
         feedback=result.get("feedback", ""),
         mock_mode=MOCK_MODE,
     )
+
+
+# Serve built React frontend — must be last so API routes take priority
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="static")

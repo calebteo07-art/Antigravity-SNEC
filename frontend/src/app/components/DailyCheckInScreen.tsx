@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { HolographicEyeLogo } from "./HolographicEyeLogo";
 import { Flame, CheckCircle, XCircle, ArrowRight } from "lucide-react";
 
-const API = "http://localhost:8000";
+const API = "";
 
 interface QuestionData {
   question: string;

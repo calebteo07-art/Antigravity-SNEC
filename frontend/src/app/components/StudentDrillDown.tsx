@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { X, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
-const API = "http://localhost:8000";
+const API = "";
 
 interface StudentProfile {
   student_id: string;

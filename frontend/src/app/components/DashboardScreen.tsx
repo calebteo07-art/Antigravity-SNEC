@@ -54,7 +54,7 @@ export function DashboardScreen() {
     const studentId = sessionStorage.getItem("eyeq_student_id");
     if (!studentId) { setCheckinChecked(true); return; }
 
-    fetch(`http://localhost:8000/api/checkin/status?student_id=${studentId}`)
+    fetch(`/api/checkin/status?student_id=${studentId}`)
       .then((r) => r.json())
       .then((data) => {
         if (!data.checkin_done_today) {
@@ -65,7 +65,7 @@ export function DashboardScreen() {
       })
       .catch(() => setCheckinChecked(true));
 
-    fetch(`http://localhost:8000/api/study-suggestion?student_id=${studentId}`)
+    fetch(`/api/study-suggestion?student_id=${studentId}`)
       .then((r) => r.json())
       .then((data) => setSuggestion(data.suggestion))
       .catch(() => null);

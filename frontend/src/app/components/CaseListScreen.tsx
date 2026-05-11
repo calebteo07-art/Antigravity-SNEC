@@ -34,7 +34,7 @@ export function CaseListScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/cases")
+    fetch("/api/cases")
       .then((r) => {
         if (!r.ok) throw new Error("Server error");
         return r.json();

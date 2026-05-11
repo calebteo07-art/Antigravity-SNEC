@@ -7,7 +7,7 @@ import { StudentDrillDown } from "./StudentDrillDown";
 import { Users, AlertTriangle, Activity, LogOut, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 
-const API = "http://localhost:8000";
+const API = "";
 
 interface CohortData {
   total: number;

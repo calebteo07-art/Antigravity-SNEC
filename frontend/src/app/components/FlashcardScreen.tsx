@@ -81,7 +81,7 @@ const RATINGS = [
   { label: "Easy", color: "bg-emerald-500 hover:bg-emerald-600", textColor: "text-white", borderColor: "border-emerald-500", value: 4 },
 ];
 
-const API = "http://localhost:8000";
+const API = "";
 
 interface AiFeedback { feedback: string; score: number; }
 

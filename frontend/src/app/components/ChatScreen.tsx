@@ -248,7 +248,7 @@ export function ChatScreen() {
       });
 
     try {
-      const res = await fetch("http://localhost:8000/api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: studentId, messages: apiMessages }),
@@ -422,7 +422,7 @@ export function ChatScreen() {
                 return { role: "assistant", content: m.raw || m.sections.explanation };
               });
               try {
-                const res = await fetch("http://localhost:8000/api/end-session", {
+                const res = await fetch("/api/end-session", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({

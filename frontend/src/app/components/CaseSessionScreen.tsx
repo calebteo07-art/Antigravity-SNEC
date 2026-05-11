@@ -67,7 +67,7 @@ export function CaseSessionScreen() {
   // Load case info from the cases list endpoint
   useEffect(() => {
     if (!caseId) return;
-    fetch("http://localhost:8000/api/cases")
+    fetch("/api/cases")
       .then((r) => r.json())
       .then((data) => {
         const found = data.cases.find((c: CaseInfo) => c.case_id === caseId);
@@ -93,7 +93,7 @@ export function CaseSessionScreen() {
 
     const studentId = sessionStorage.getItem("eyeq_student_id") || "anonymous";
     try {
-      const res = await fetch(`http://localhost:8000/api/cases/${caseId}/chat`, {
+      const res = await fetch(`/api/cases/${caseId}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: studentId, messages: updated }),
@@ -124,7 +124,7 @@ export function CaseSessionScreen() {
 
     const studentId = sessionStorage.getItem("eyeq_student_id") || "anonymous";
     try {
-      const res = await fetch(`http://localhost:8000/api/cases/${caseId}/submit`, {
+      const res = await fetch(`/api/cases/${caseId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
