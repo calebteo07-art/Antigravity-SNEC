@@ -168,20 +168,49 @@ export function ChatScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: studentId, messages: apiMessages }),
       });
-      const data = await res.json();
-      const aiMsg: AIMessage = {
-        type: "ai",
-        id: (Date.now() + 1).toString(),
-        content: data.content || FALLBACK_CONTENT,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+
+      if (!res.body) throw new Error("No readable stream");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      const aiMsgId = (Date.now() + 1).toString();
+
+      setMessages((prev) => [...prev, { type: "ai", id: aiMsgId, content: "" }]);
+      setIsTyping(false);
+
+      let accumulatedContent = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split('\n\n');
+        buffer = chunks.pop() || "";
+
+        for (const chunk of chunks) {
+          if (chunk.startsWith("data: ")) {
+            const data = chunk.slice(6);
+            if (data === "[DONE]") break;
+            try {
+              accumulatedContent += JSON.parse(data);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId ? { ...m, content: accumulatedContent } : m
+                )
+              );
+            } catch (e) {
+              console.error("Error parsing stream chunk", e);
+            }
+          }
+        }
+      }
     } catch {
-      const aiMsg: AIMessage = {
-        type: "ai",
-        id: (Date.now() + 1).toString(),
-        content: FALLBACK_CONTENT,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages((prev) => [
+        ...prev,
+        { type: "ai", id: (Date.now() + 1).toString(), content: FALLBACK_CONTENT },
+      ]);
     } finally {
       setIsTyping(false);
     }

@@ -40,7 +40,9 @@ class EndSessionResponse(BaseModel):
     cards: List[FlashcardDTO]
     mock_mode: bool
 
-@router.post("/chat", response_model=ChatResponse)
+from fastapi.responses import StreamingResponse
+
+@router.post("/chat")
 def chat(body: ChatRequest):
     messages = [{"role": m.role, "content": m.content} for m in body.messages]
 
@@ -53,15 +55,20 @@ def chat(body: ChatRequest):
     except Exception:
         pass
 
-    content = ask(
-        system_prompt=system_prompt,
-        messages=messages,
-        max_tokens=2048,
-        feature="chatbot",
-        model=MODEL,
-    )
+    def event_generator():
+        from tools.shared.claude_client import ask_stream
+        import json
+        for chunk in ask_stream(
+            system_prompt=system_prompt,
+            messages=messages,
+            max_tokens=2048,
+            feature="chatbot",
+            model=MODEL,
+        ):
+            yield f"data: {json.dumps(chunk)}\n\n"
+        yield "data: [DONE]\n\n"
 
-    return ChatResponse(content=content)
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/end-session", response_model=EndSessionResponse)
 def end_session(body: EndSessionRequest):

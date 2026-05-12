@@ -137,6 +137,50 @@ def ask(
     return response.text
 
 
+def ask_stream(
+    system_prompt: str,
+    messages: list[dict],
+    max_tokens: int = 8192,
+    feature: str = "default",
+    model: str | None = None,
+):
+    """
+    Send a conversation to Gemini and yield the response text in chunks.
+    """
+    import time
+    if MOCK_MODE:
+        mock_text = _mock_response(feature)
+        # Yield the mock response in chunks to simulate streaming
+        chunk_size = 15
+        for i in range(0, len(mock_text), chunk_size):
+            yield mock_text[i:i+chunk_size]
+            time.sleep(0.05)
+        return
+
+    from google import genai as _genai
+
+    history, last_message = _to_gemini_history(messages)
+
+    contents = [
+        {"role": h["role"], "parts": [{"text": p} if isinstance(p, str) else p for p in h["parts"]]}
+        for h in history
+    ]
+    contents.append({"role": "user", "parts": [{"text": last_message}]})
+
+    response_stream = _client.models.generate_content_stream(
+        model=model or MODEL,
+        config=_genai.types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            max_output_tokens=max_tokens,
+        ),
+        contents=contents,
+    )
+    
+    for chunk in response_stream:
+        if chunk.text:
+            yield chunk.text
+
+
 def ask_with_image(
     system_prompt: str,
     messages: list[dict],
