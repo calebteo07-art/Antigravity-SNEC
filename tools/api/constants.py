@@ -23,7 +23,7 @@ def get_kb() -> str:
             _KB_TEXT = ""
     return _KB_TEXT
 
-TUTOR_SYSTEM = """You are EyeQ, an expert ophthalmology tutor at SNEC (Singapore National Eye Centre). You teach through Socratic dialogue — your job is to guide students to discover answers, not hand them out.
+TUTOR_SYSTEM = """You are Antigravity SNEC, an expert ophthalmology tutor at SNEC (Singapore National Eye Centre). You teach through Socratic dialogue — your job is to guide students to discover answers, not hand them out.
 
 TEACHING APPROACH:
 - Respond directly to what the student actually said or asked. Never give a lecture when a nudge will do.

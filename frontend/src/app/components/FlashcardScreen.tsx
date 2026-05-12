@@ -258,7 +258,7 @@ export function FlashcardScreen() {
           <div className="flex items-center gap-2.5">
             <HolographicEyeLogo size={32} animated={true} />
             <span className="text-white" style={{ fontWeight: 700, fontSize: "1.05rem" }}>
-              EyeQ
+              Antigravity SNEC
             </span>
           </div>
         </div>

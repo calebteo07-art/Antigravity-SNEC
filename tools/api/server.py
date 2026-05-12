@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FastAPI backend for the EyeQ web frontend.
+"""FastAPI backend for the Antigravity SNEC web frontend.
 
 Bridges the React frontend to the existing tools.
 Automatically runs in MOCK MODE when ANTHROPIC_API_KEY is not set in .env.
@@ -20,7 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from tools.api.constants import MOCK_MODE, IMAGES_DIR
 from tools.api.routers import onboarding, chat, cases, flashcards, image_quiz, supervisor
 
-app = FastAPI(title="EyeQ API")
+app = FastAPI(title="Antigravity SNEC API")
 
 app.add_middleware(
     CORSMiddleware,

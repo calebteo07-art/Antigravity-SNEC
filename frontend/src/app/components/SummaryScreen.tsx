@@ -147,7 +147,7 @@ export function SummaryScreen() {
           <div className="flex items-center gap-3">
             <HolographicEyeLogo size={36} animated={true} />
             <span className="text-white" style={{ fontWeight: 700, fontSize: "1.2rem" }}>
-              EyeQ
+              Antigravity SNEC
             </span>
           </div>
           <div className="flex items-center gap-4">

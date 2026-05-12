@@ -236,7 +236,7 @@ export function ChatScreen() {
             <HolographicEyeLogo size={32} animated={true} />
             <div>
               <span className="text-white" style={{ fontSize: "1.1rem", fontWeight: 700, letterSpacing: "-0.01em" }}>
-                EyeQ
+                Antigravity SNEC
               </span>
               <div className="text-[#14B8A6]" style={{ fontSize: "0.6rem", letterSpacing: "0.12em", fontWeight: 500 }}>
                 MEDICAL EDUCATION

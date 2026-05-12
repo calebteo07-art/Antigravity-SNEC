@@ -8,7 +8,7 @@ import { Eye, Sparkles } from "lucide-react";
 const PDPA_TEXT = `PERSONAL DATA PROTECTION ACT (PDPA) CONSENT
 
 1. COLLECTION OF PERSONAL DATA
-EyeQ ("the Application") collects personal information including your full name and email address for the purpose of providing personalized medical education services. By registering, you consent to the collection, use, and processing of your personal data as described herein.
+Antigravity SNEC ("the Application") collects personal information including your full name and email address for the purpose of providing personalized medical education services. By registering, you consent to the collection, use, and processing of your personal data as described herein.
 
 2. PURPOSE OF DATA COLLECTION
 Your personal data is collected for the following purposes:
@@ -22,7 +22,7 @@ Your personal data is collected for the following purposes:
 Your personal data will be retained for the duration of your active account and for a period of 3 years after account closure, in accordance with applicable medical education record-keeping requirements.
 
 4. DATA SHARING
-EyeQ does not sell, trade, or transfer your personal information to third parties without your explicit consent, except where required by law or necessary for the operation of services directly related to the Application.
+Antigravity SNEC does not sell, trade, or transfer your personal information to third parties without your explicit consent, except where required by law or necessary for the operation of services directly related to the Application.
 
 5. YOUR RIGHTS
 You have the right to: access your personal data; request correction of inaccurate data; withdraw consent at any time; request deletion of your data subject to applicable legal requirements.
@@ -128,7 +128,7 @@ export function OnboardingScreen() {
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
               >
-                EyeQ
+                Antigravity SNEC
               </motion.h1>
               <motion.p
                 className="text-[#14B8A6]"
@@ -313,7 +313,7 @@ export function OnboardingScreen() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
         >
-          © 2026 EyeQ Medical Education. All rights reserved.
+          © 2026 Antigravity SNEC Medical Education. All rights reserved.
         </motion.p>
       </motion.div>
     </div>

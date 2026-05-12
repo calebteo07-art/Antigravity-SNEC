@@ -173,7 +173,7 @@ export function DashboardScreen() {
         </div>
 
         <p className="text-center text-slate-600 mt-8" style={{ fontSize: "0.75rem" }}>
-          © 2026 EyeQ Medical Education. All rights reserved.
+          © 2026 Antigravity SNEC Medical Education. All rights reserved.
         </p>
       </motion.div>
     </div>
