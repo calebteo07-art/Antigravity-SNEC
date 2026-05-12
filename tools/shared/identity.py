@@ -20,11 +20,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.shared.gsheets import append_row, get_rows, update_row, delete_row
+from tools.shared.database import SessionLocal
+from tools.shared.models import Student
 from tools.shared.audit_log import log
 
 PDPA_VERSION = "1.0"
-SHEET = "snec_consent"
 
 
 def get_or_create_student(name: str, email: str) -> str:
@@ -38,23 +38,22 @@ def get_or_create_student(name: str, email: str) -> str:
     Returns:
         student_id: UUID string for this student.
     """
-    existing = get_rows(SHEET, filters={"email": email})
-    if existing:
-        student_id = existing[0]["student_id"]
-        log("student_lookup", student_id=student_id, feature="identity", detail="returning student")
-        return student_id
+    with SessionLocal() as db:
+        existing = db.query(Student).filter(Student.email == email).first()
+        if existing:
+            log("student_lookup", student_id=existing.student_id, feature="identity", detail="returning student")
+            return existing.student_id
 
-    student_id = str(uuid.uuid4())
-    append_row(SHEET, {
-        "student_id": student_id,
-        "student_name": name,
-        "email": email,
-        "consent_date": "",
-        "pdpa_version": "",
-        "withdrawn_date": "",
-    })
-    log("student_created", student_id=student_id, feature="identity", detail="new student registered")
-    return student_id
+        new_student = Student(
+            student_name=name,
+            email=email
+        )
+        db.add(new_student)
+        db.commit()
+        db.refresh(new_student)
+        log("student_created", student_id=new_student.student_id, feature="identity", detail="new student registered")
+        return new_student.student_id
+
 
 
 def has_consented(student_id: str) -> bool:
@@ -64,11 +63,11 @@ def has_consented(student_id: str) -> bool:
     Returns:
         True if consent_date is recorded and withdrawn_date is empty.
     """
-    rows = get_rows(SHEET, filters={"student_id": student_id})
-    if not rows:
-        return False
-    row = rows[0]
-    return bool(row.get("consent_date")) and not bool(row.get("withdrawn_date"))
+    with SessionLocal() as db:
+        student = db.query(Student).filter(Student.student_id == student_id).first()
+        if not student:
+            return False
+        return bool(student.consent_date) and not bool(student.withdrawn_date)
 
 
 def record_consent(student_id: str) -> None:
@@ -76,12 +75,15 @@ def record_consent(student_id: str) -> None:
     Record that a student has given PDPA consent.
     Sets consent_date and pdpa_version in the snec_consent sheet.
     """
-    now = datetime.now(timezone.utc).isoformat()
-    update_row(SHEET, "student_id", student_id, {
-        "consent_date": now,
-        "pdpa_version": PDPA_VERSION,
-        "withdrawn_date": "",
-    })
+    now = datetime.now(timezone.utc)
+    with SessionLocal() as db:
+        student = db.query(Student).filter(Student.student_id == student_id).first()
+        if student:
+            student.consent_date = now
+            student.pdpa_version = PDPA_VERSION
+            student.withdrawn_date = None
+            db.commit()
+            
     log("consent_recorded", student_id=student_id, feature="identity",
         detail=f"pdpa_version={PDPA_VERSION}")
 
@@ -91,8 +93,12 @@ def withdraw_consent(student_id: str) -> None:
     Record that a student has withdrawn PDPA consent.
     Sets withdrawn_date. Does not delete the row (required for audit trail).
     """
-    now = datetime.now(timezone.utc).isoformat()
-    update_row(SHEET, "student_id", student_id, {"withdrawn_date": now})
+    now = datetime.now(timezone.utc)
+    with SessionLocal() as db:
+        student = db.query(Student).filter(Student.student_id == student_id).first()
+        if student:
+            student.withdrawn_date = now
+            db.commit()
     log("consent_withdrawn", student_id=student_id, feature="identity", detail="")
 
 
@@ -100,8 +106,27 @@ def get_profile(student_id: str) -> dict | None:
     """
     Return the student's full profile row, or None if not found.
     """
-    rows = get_rows(SHEET, filters={"student_id": student_id})
-    return rows[0] if rows else None
+    with SessionLocal() as db:
+        student = db.query(Student).filter(Student.student_id == student_id).first()
+        if not student:
+            return None
+        
+        # Convert SQLAlchemy model to dict for backward compatibility
+        return {
+            "student_id": student.student_id,
+            "student_name": student.student_name,
+            "email": student.email,
+            "consent_date": student.consent_date.isoformat() if student.consent_date else "",
+            "withdrawn_date": student.withdrawn_date.isoformat() if student.withdrawn_date else "",
+            "weak_topics": student.weak_topics,
+            "missed_findings": student.missed_findings,
+            "retention_scores": student.retention_scores,
+            "session_count": student.session_count,
+            "streak": student.streak,
+            "last_active": student.last_active.isoformat() if student.last_active else "",
+            "learning_velocity": student.learning_velocity,
+            "checkin_done_today": str(student.checkin_done_today).lower()
+        }
 
 
 if __name__ == "__main__":
@@ -142,7 +167,9 @@ if __name__ == "__main__":
     print("  [OK] Consent withdrawn.")
 
     # Clean up test row
-    delete_row(SHEET, "student_id", sid)
+    with SessionLocal() as db:
+        db.query(Student).filter(Student.student_id == sid).delete()
+        db.commit()
     print("  [OK] Test row cleaned up.")
 
     print("\n  [PASS] identity.py working correctly.")

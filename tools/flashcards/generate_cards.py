@@ -21,7 +21,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from tools.shared.claude_client import ask, MODEL_SMALL
-from tools.shared.gsheets import append_row
+from tools.shared.database import SessionLocal
+from tools.shared.models import Flashcard
 from tools.shared.audit_log import log as audit_log
 from tools.flashcards.sm2 import due_date
 
@@ -117,22 +118,23 @@ def generate_and_return_cards(
         return []
 
     saved = []
-    for card in cards:
-        card_id = str(uuid.uuid4())
-        append_row("snec_flashcards", {
-            "card_id": card_id,
-            "student_id": student_id,
-            "front": card["front"],
-            "back": card["back"],
-            "topic_tag": card["topic_tag"],
-            "easiness_factor": "2.5",
-            "interval_days": "0",
-            "repetition_count": "0",
-            "next_due_date": due_date(0),
-            "last_reviewed": "",
-            "created_from_session_id": session_id,
-        })
-        saved.append({"card_id": card_id, "front": card["front"], "back": card["back"], "topic_tag": card["topic_tag"]})
+    with SessionLocal() as db:
+        for card in cards:
+            card_id = str(uuid.uuid4())
+            new_card = Flashcard(
+                card_id=card_id,
+                student_id=student_id,
+                session_id=session_id,
+                front=card["front"],
+                back=card["back"],
+                topic_tag=card["topic_tag"],
+                easiness_factor=2.5,
+                interval=0,
+                repetition=0
+            )
+            db.add(new_card)
+            saved.append({"card_id": card_id, "front": card["front"], "back": card["back"], "topic_tag": card["topic_tag"]})
+        db.commit()
 
     audit_log("cards_generated", student_id=student_id, feature="flashcards",
               detail=f"session_id={session_id} count={len(saved)}")
@@ -160,17 +162,19 @@ if __name__ == "__main__":
     print(f"  Cards generated: {count}")
     assert count > 0, "Expected at least 1 card"
 
-    # Verify in Sheets
-    from tools.shared.gsheets import get_rows, delete_row
-    rows = get_rows("snec_flashcards", filters={"created_from_session_id": TEST_SESSION})
-    print(f"  Cards in Sheets: {len(rows)}")
-    for row in rows:
-        print(f"    Q: {row['front']}")
-        print(f"    A: {row['back']}")
+    # Verify in SQLite
+    from tools.shared.database import SessionLocal
+    from tools.shared.models import Flashcard
+    with SessionLocal() as db:
+        rows = db.query(Flashcard).filter(Flashcard.session_id == TEST_SESSION).all()
+        print(f"  Cards in DB: {len(rows)}")
+        for row in rows:
+            print(f"    Q: {row.front}")
+            print(f"    A: {row.back}")
 
-    # Clean up
-    for row in rows:
-        delete_row("snec_flashcards", "card_id", row["card_id"])
+        # Clean up
+        db.query(Flashcard).filter(Flashcard.session_id == TEST_SESSION).delete()
+        db.commit()
     print("  Test cards cleaned up.")
 
     print("\n  [PASS] generate_cards.py working correctly.")

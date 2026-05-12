@@ -22,6 +22,7 @@ pydicom>=2.4.0
 
 # Case Validation
 pydantic>=2.6.0
+SQLAlchemy>=2.0.0
 
 # PDF Generation (Phase 2)
 reportlab>=4.0.0

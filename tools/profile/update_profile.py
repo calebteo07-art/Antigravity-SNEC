@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update a student's profile in the snec_profiles Google Sheet after a session.
+"""Update a student's profile in the database after a session.
 
 Usage:
     from tools.profile.update_profile import update_profile
@@ -14,19 +14,18 @@ Usage:
 
 import json
 import sys
-from datetime import date, timedelta
+from datetime import datetime, timezone, timedelta, date
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from tools.profile.get_profile import get_profile
-from tools.shared.gsheets import update_row
+from tools.shared.database import SessionLocal
+from tools.shared.models import Student
 from tools.shared.audit_log import log
 
-SHEET = "snec_profiles"
 WEAK_THRESHOLD = 0.65
-
 
 def _calc_velocity(old_scores: dict, new_scores: dict) -> str:
     """Compare average retention before/after to determine learning trend."""
@@ -41,7 +40,6 @@ def _calc_velocity(old_scores: dict, new_scores: dict) -> str:
         return "declining"
     return "stable"
 
-
 def update_profile(
     student_id: str,
     topic: str | None = None,
@@ -49,9 +47,6 @@ def update_profile(
     new_missed_findings: list[str] | None = None,
     checkin_done: bool = False,
 ) -> None:
-    """
-    Update the student's profile. Never raises — logs errors to audit_log.
-    """
     try:
         profile = get_profile(student_id)
     except Exception as exc:
@@ -59,12 +54,12 @@ def update_profile(
         return
 
     today = date.today()
-    today_str = today.isoformat()
+    now_utc = datetime.now(timezone.utc)
 
     # Streak
     last_active = profile.get("last_active", "")
     try:
-        last = date.fromisoformat(last_active) if last_active else None
+        last = date.fromisoformat(last_active.split("T")[0]) if last_active else None
     except ValueError:
         last = None
 
@@ -105,19 +100,19 @@ def update_profile(
     # Session count
     session_count = int(profile.get("session_count", "0") or "0") + 1
 
-    updates = {
-        "session_count": str(session_count),
-        "streak": str(new_streak),
-        "last_active": today_str,
-        "retention_scores": json.dumps(retention),
-        "weak_topics": json.dumps(weak_topics),
-        "missed_findings": json.dumps(findings),
-        "learning_velocity": velocity,
-    }
-    if checkin_done:
-        updates["checkin_done_today"] = "true"
-
     try:
-        update_row(SHEET, "student_id", student_id, updates)
+        with SessionLocal() as db:
+            student = db.query(Student).filter(Student.student_id == student_id).first()
+            if student:
+                student.session_count = session_count
+                student.streak = new_streak
+                student.last_active = now_utc
+                student.retention_scores = json.dumps(retention)
+                student.weak_topics = json.dumps(weak_topics)
+                student.missed_findings = json.dumps(findings)
+                student.learning_velocity = velocity
+                if checkin_done:
+                    student.checkin_done_today = True
+                db.commit()
     except Exception as exc:
         log("profile_write_error", student_id=student_id, feature="profile", detail=str(exc))
